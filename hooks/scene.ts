@@ -115,9 +115,43 @@ const stackStyle = (drop: number, fires: boolean) => `
 export type SceneOptions = {
   /** false draws a still picture: no CSS at all. */
   animate: boolean
+  /** The brand on the plate above the rocket; empty or left out draws no plate. */
+  brand?: string
 }
 
-export function buildScene(f: Factory, { animate }: SceneOptions): string {
+const escXml = (t: string) =>
+  t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+// Brand plate: hung from the roof truss above the rocket, kept left of the reading lane.
+const PLATE_CX = 175
+const PLATE_Y = 106
+const PLATE_H = 18
+const PLATE_MAX_W = 72
+const PLATE_FONT = 8
+const PLATE_CH = PLATE_FONT * 0.62
+
+/** A steel plate with the brand stenciled on it, hung on two cables. */
+const brandPlate = (name: string) => {
+  const label = name.toUpperCase()
+  const natural = Array.from(label).length * PLATE_CH
+  const w = Math.min(PLATE_MAX_W, Math.max(36, natural + 14))
+  const textW = Math.min(natural, w - 10)
+  const x = PLATE_CX - w / 2
+  const cable = (cx: number) => `<rect x="${cx.toFixed(1)}" y="50" width="1" height="${PLATE_Y - 50}" fill="${G.d5}"/>`
+  const rivet = (cx: number) => `<circle cx="${cx.toFixed(1)}" cy="${PLATE_Y + 3.5}" r=".9" fill="${G.m5}"/>`
+  return (
+    `<g>${cable(x + 6)}${cable(x + w - 7)}` +
+    `<rect x="${x.toFixed(1)}" y="${PLATE_Y}" width="${w.toFixed(1)}" height="${PLATE_H}" fill="${G.d3}" stroke="${G.m2}" stroke-width="1"/>` +
+    `<rect x="${x.toFixed(1)}" y="${PLATE_Y}" width="${w.toFixed(1)}" height="1.5" fill="${G.m3}"/>` +
+    rivet(x + 6.5) +
+    rivet(x + w - 6.5) +
+    `<text x="${PLATE_CX}" y="${PLATE_Y + 12.5}" text-anchor="middle" font-size="${PLATE_FONT}" font-weight="700" ` +
+    `font-family="ui-monospace,Menlo,monospace" fill="${G.l6}" textLength="${textW.toFixed(1)}" ` +
+    `lengthAdjust="spacingAndGlyphs">${escXml(label)}</text></g>`
+  )
+}
+
+export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): string {
   const rings = Math.max(0, Math.min(RINGS, f.rings))
   const complete = rings >= RINGS
   const top = BASE - rings * RH
@@ -257,6 +291,11 @@ export function buildScene(f: Factory, { animate }: SceneOptions): string {
     [660, 6, 0.18],
   ] as const
   o.push(`<g fill="${G.bg}">${lane.map(([x, w, a]) => `<rect x="${x}" width="${w}" height="${H}" opacity="${a}"/>`).join('')}</g>`)
+
+  // brand plate above the rocket, drawn after the veil so it stays bright
+  if (brand.trim() !== '') {
+    o.push(brandPlate(brand.trim()))
+  }
 
   // build readout, above the tower, clear of the chat
   const mono = 'font-size="7" font-family="ui-monospace,Menlo,monospace"'

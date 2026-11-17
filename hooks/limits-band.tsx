@@ -16,6 +16,8 @@ const CONTEXT = { plugin: 'limits', key: 'context' } as const
 const REFRESHING = { plugin: 'limits', key: 'refreshing' } as const
 /** rocket-factory's own look; register.tsx writes it. */
 const LOOK = { plugin: 'rocket-factory', key: 'look' } as const
+/** The brand shown at the row's start; register.tsx writes it, '' for none. */
+const BRAND = { plugin: 'rocket-factory', key: 'brand' } as const
 
 const LIMITS_PLUGIN = 'limits'
 const OWN_PLUGIN = 'rocket-factory'
@@ -202,6 +204,16 @@ const textSvg = (body: string, width: number) => {
 
 const labelSvg = (m: Meter) => textSvg(run(0, 13, m.label, GREY), m.label.length * CH)
 
+/** The brand, bright and bold, with a steel divider after it. */
+const brandSvg = (name: string) => {
+  const label = name.toUpperCase()
+  const w = Array.from(label).length * CH
+  return textSvg(
+    run(0, 13, label, TICK, true) + `<rect x="${(w + 8).toFixed(1)}" y="3" width="1.5" height="12" fill="${STEEL}"/>`,
+    w + 14,
+  )
+}
+
 const tailSvg = (m: Meter, pad: number) => {
   const pct = m.pctText ?? fmtPct(m.pct)
   let body = run(0, 13, pct, paint(m), true)
@@ -298,6 +310,7 @@ export const registerLimitsBand = (on: On) => {
     const { value: nowAt = 0 } = await $.state.get(NOW)
     const { value: ctx = null } = await $.state.get(CONTEXT)
     const { value: isRefreshing = false } = await $.state.get(REFRESHING)
+    const { value: brand = '' } = await $.state.get(BRAND)
     const at = nowAt || Date.now()
     const meters = metersOf(s, ctx, at)
     const age = at - s.at
@@ -305,8 +318,10 @@ export const registerLimitsBand = (on: On) => {
 
     if (e.surface !== 'terminal') {
       const { Box, Svg, Text } = $.ui.resolve(e)
+      const plate = brand ? brandSvg(brand) : undefined
       return (
         <Box flexDirection="row" flexWrap="nowrap" alignItems="center" columnGap={1}>
+          {plate ? <Svg source={plate.source} width={plate.width} height={plate.height} alt={`Brand: ${brand}`} /> : null}
           {meters.flatMap((m, i) => {
             const label = labelSvg(m)
             const tail = tailSvg(m, i < meters.length - 1 ? GAP - 8 : 0)
@@ -334,10 +349,18 @@ export const registerLimitsBand = (on: On) => {
         (m.detail ? m.detail.length + 1 : 0) + (m.reset ? m.reset.length + 3 : 0),
       0,
     )
-    const spare = e.props.bodyColumns - textCols - 3 * meters.length - (ageText.length + 4)
+    const brandLabel = brand ? brand.toUpperCase() : ''
+    const brandCols = brandLabel ? Array.from(brandLabel).length + 5 : 0
+    const spare = e.props.bodyColumns - textCols - 3 * meters.length - (ageText.length + 4) - brandCols
     const barWidth = Math.min(40, Math.max(8, Math.floor(spare / meters.length)))
     return (
       <Box flexDirection="row" flexWrap="wrap" columnGap={3}>
+        {brandLabel ? (
+          <Box flexDirection="row">
+            <Text bold>{brandLabel}</Text>
+            <Text dimColor> │</Text>
+          </Box>
+        ) : null}
         {meters.map(m => (
           <Box flexDirection="row">
             <Text dimColor>{m.label} </Text>

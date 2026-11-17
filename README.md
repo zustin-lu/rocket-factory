@@ -49,8 +49,17 @@ The theme turns on when a session starts.
 | `/rocket-factory` or `/rocket-factory on` | Theme on, with motion |
 | `/rocket-factory calm` | Theme on, no motion |
 | `/rocket-factory off` | Theme off; Limits shows its own band again |
+| `/rocket-factory brand <name>` | Shows a brand name on a plate above the rocket and at the start of the usage band (up to 16 characters) |
+| `/rocket-factory brand` | Removes the brand name |
 
 The animated backdrop draws in the desktop and mobile apps. The colors are dark-mode only.
+
+### Brand name
+
+If you run Claude Code with more than one config folder (for example a work one and
+a personal one), give each its own brand to tell them apart at a glance. The name is
+saved in that config folder, so each one keeps its own name between sessions. In
+the terminal, the brand shows at the start of the usage band.
 
 ## Update
 

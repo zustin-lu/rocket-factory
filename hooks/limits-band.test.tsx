@@ -100,3 +100,22 @@ test('the Rocket row takes Limits\' place; Limits\' row is left out', () => {
   expect(swapLimitsRow([p('limits'), p('x')])).toBeUndefined()
   expect(swapLimitsRow([p('rocket-factory')])).toBeUndefined()
 })
+
+test('a brand leads the band on desktop and terminal', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  seed(on, { ...READING, 'rocket-factory.brand': 'Acme' })
+
+  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
+  expect(svgs).toHaveLength(16)
+  expect(svgs[0]!.props.alt).toBe('Brand: Acme')
+  expect(svgs[0]!.props.source).toContain('>ACME</text>')
+  await desk.unmount()
+
+  const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await term.find({ type: 'Text', text: 'ACME' })).toBeDefined()
+  await term.unmount()
+})

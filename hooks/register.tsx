@@ -2,6 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 
 import type { Factory, Look } from '../types'
+import { BRAND_MAX, BRAND_STORE_KEY, cleanBrand, storedBrand } from './brand'
 import { registerLimitsBand } from './limits-band'
 import { checkLimits, installSteps, shortNotice } from './limits-gate'
 import { makeColors } from './make-colors.js'
@@ -53,6 +54,26 @@ const factory = atom({ plugin: 'rocket-factory', key: 'factory' } as const, INIT
   shape: 'factory-1',
 })
 
+// The brand on the plate above the rocket and at the start of the band; '' is none.
+const brand = atom({ plugin: 'rocket-factory', key: 'brand' } as const, '')
+
+/** Sets the brand, or clears it when `raw` is empty, and answers what the command says back. */
+const setBrand = async ($: EngineInterface, raw: string): Promise<string> => {
+  const { name, isCut } = cleanBrand(raw)
+  if (name === '') {
+    await $.store.delete(BRAND_STORE_KEY)
+    await update($, brand, () => '')
+
+    return 'Brand cleared. Set one with /rocket-factory brand <name>.'
+  }
+  await $.store.set(BRAND_STORE_KEY, name)
+  await update($, brand, () => name)
+
+  return isCut
+    ? `Brand set to "${name}" (cut to ${BRAND_MAX} characters).`
+    : `Brand set to "${name}". It shows above the rocket and in the limits band.`
+}
+
 // Tool calls of the running turn. Counted here and written once at turn end,
 // so the scene redraws twice a turn rather than on every call.
 let pendingWelds = 0
@@ -92,8 +113,11 @@ export const register: Register = on => {
     $.ui.status(undefined)
     await $.command.register({
       name: 'rocket-factory',
-      description: 'Rocket factory theme, with a Rocket skin for the Limits band: on (default), calm (no motion), off',
+      description:
+        'Rocket factory theme, with a Rocket skin for the Limits band: on (default), calm (no motion), off, brand <name>',
     })
+    const saved = storedBrand(await $.store.get(BRAND_STORE_KEY))
+    await update($, brand, () => saved)
     await apply($, 'on')
 
     return next(e)
@@ -101,6 +125,10 @@ export const register: Register = on => {
 
   on('command.run', { command: 'rocket-factory' }, async ($, e) => {
     const arg = e.args.trim() || 'on'
+    const brandArg = /^brand(?:\s+([\s\S]*))?$/i.exec(arg)
+    if (brandArg) {
+      return { text: await setBrand($, brandArg[1] ?? '') }
+    }
     if (arg === 'off') {
       await $.theme.clear()
       await update($, look, (): Look => 'off')
@@ -108,7 +136,7 @@ export const register: Register = on => {
       return { text: 'Rocket factory off. Run /rocket-factory to bring it back.' }
     }
     if (arg !== 'on' && arg !== 'calm') {
-      return { text: `Unknown option "${arg}". Use: on, calm, off.` }
+      return { text: `Unknown option "${arg}". Use: on, calm, off, brand <name>.` }
     }
     const blocked = await apply($, arg)
     if (blocked !== undefined) {
@@ -167,11 +195,12 @@ export const register: Register = on => {
     }
     const { Svg } = $.ui.resolve(e)
     const f = await read($, factory)
+    const name = await read($, brand)
 
     return (
       <Svg
-        source={buildScene(f, { animate: !still })}
-        alt={`Monotone rocket factory: build ${f.build}, ring ${Math.min(f.rings, RINGS)} of ${RINGS} stacked; crews, carts and robots at work`}
+        source={buildScene(f, { animate: !still, brand: name })}
+        alt={`Monotone rocket factory${name ? `, branded ${name}` : ''}: build ${f.build}, ring ${Math.min(f.rings, RINGS)} of ${RINGS} stacked; crews, carts and robots at work`}
         isInteractive
       />
     )

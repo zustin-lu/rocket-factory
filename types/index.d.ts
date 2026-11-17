@@ -14,7 +14,8 @@ export type Factory = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'rocket-factory': { factory: Shaped<Factory>; look: Look }
+    /** `brand`: the name on the plate and the band, `''` for none. */
+    'rocket-factory': { factory: Shaped<Factory>; look: Look; brand: string }
   }
 }
 
