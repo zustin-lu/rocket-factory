@@ -54,6 +54,20 @@ The theme turns on when a session starts.
 
 The animated backdrop draws in the desktop and mobile apps. The colors are dark-mode only.
 
+### Reading the usage band
+
+```
+[CYBERSKILL]  5HR ▰▰▰▱▱▱▱▱ 24% T-2h    WK ▰▰▰▰▰▱▱▱ 61% ● T-3d    CTX 42%   •
+```
+
+- **5HR / WK**: share of the window used. The bright tick on the bar marks how far
+  into the window you are; `T-2h` counts down to the reset.
+- **Colors**: green under 60%, amber from 60%, red from 85% or when your pace would
+  run out before the reset. A red meter also gets a blinking beacon (still in calm mode).
+- **CTX**: the context window, as a colored percent. Hover it for the token count.
+- **Telemetry dot**: lit when the reading is fresh, dim after 10 minutes, pulsing
+  while it refreshes.
+
 ### Brand name
 
 If you run Claude Code with more than one config folder (for example a work one and

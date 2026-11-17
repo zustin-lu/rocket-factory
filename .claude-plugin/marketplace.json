@@ -12,7 +12,7 @@
       "name": "rocket-factory",
       "source": "./",
       "description": "Monotone rocket factory theme for Claude Code, with a Rocket skin for the Limits band. Needs limits@claude-mods.",
-      "version": "0.6.0"
+      "version": "0.7.0"
     }
   ]
 }

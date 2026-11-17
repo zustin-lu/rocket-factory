@@ -53,6 +53,9 @@ export const fmtSpan = (ms: number): string => {
 export const fmtPct = (p: number | undefined): string =>
   p === undefined ? '—' : `${p < 10 && p % 1 !== 0 ? p.toFixed(1) : Math.round(p)}%`
 
+/** A reset time as a launch countdown: `T-2h`, `T-0` once it is due. */
+export const countdown = (ms: number): string => `T-${ms <= 0 ? '0' : fmtSpan(ms)}`
+
 const tone = (p: number | undefined): Level =>
   p === undefined ? 'inactive' : p >= 85 ? 'error' : p >= 60 ? 'warning' : 'success'
 
@@ -94,18 +97,21 @@ export type Meter = {
   reset?: string
   /** Where "now" sits in the window, 0–1. */
   elapsed?: number
-  /** Plain text after the percent (the context's token count). */
-  detail?: string
   /** Shown in place of the percent while there is none yet. */
   pctText?: string
+  /** No bar: the colored percent alone (the context window, which has no pace or reset). */
+  isNumberOnly?: boolean
   alt: string
 }
+
+/** A meter in the red: 85% or more, or on track to run out before the reset. Gets a beacon. */
+export const isWarning = (m: Meter) => m.level === 'error'
 
 const toMeter = (raw: LimitsLimit, at: number): Meter => {
   const l = current(raw, at)
   const pace = paceOf(l, at)
   const runsOut = pace?.runsOutIn !== undefined ? fmtSpan(pace.runsOutIn) : undefined
-  const reset = l.resetsAt ? fmtSpan(Date.parse(l.resetsAt) - at) : undefined
+  const reset = l.resetsAt ? countdown(Date.parse(l.resetsAt) - at) : undefined
   return {
     label: labelOf(l.kind),
     pct: l.percentUsed,
@@ -115,7 +121,7 @@ const toMeter = (raw: LimitsLimit, at: number): Meter => {
     elapsed: pace ? pace.elapsedPct / 100 : undefined,
     alt:
       `${longLabelOf(l.kind)} limit ${fmtPct(l.percentUsed)} used` +
-      (reset ? `, resets in ${reset}` : '') +
+      (l.resetsAt ? `, resets in ${fmtSpan(Date.parse(l.resetsAt) - at)}` : '') +
       (pace ? `, ${Math.round(pace.elapsedPct)}% of window elapsed` : '') +
       (runsOut ? `, runs out in about ${runsOut}` : ''),
   }
@@ -129,8 +135,8 @@ export const metersOf = (s: LimitsSnapshot | null, ctx: LimitsContext | null, at
       label: 'CTX',
       pct: ctx.percent,
       level: tone(ctx.percent),
-      detail,
-      alt: `Context ${detail} tokens, ${fmtPct(ctx.percent)} of the window`,
+      isNumberOnly: true,
+      alt: `Context ${fmtPct(ctx.percent)} of the window, ${detail} tokens`,
     })
   } else if (ctx) {
     meters.push({
@@ -138,8 +144,8 @@ export const metersOf = (s: LimitsSnapshot | null, ctx: LimitsContext | null, at
       pct: 0,
       pctText: '–',
       level: 'inactive',
-      detail: `–/${fmtTokens(ctx.window)}`,
-      alt: 'Context: the token count shows after the next reply',
+      isNumberOnly: true,
+      alt: `Context window ${fmtTokens(ctx.window)} tokens: the share used shows after the next reply`,
     })
   }
   return meters
@@ -149,8 +155,10 @@ export const metersOf = (s: LimitsSnapshot | null, ctx: LimitsContext | null, at
 
 /** Rocket Factory roles (the theme's accent family), muted so the band stays quiet. */
 const HEX: Record<string, string> = { success: '#8fb39a', warning: '#c9ad7f', error: '#c98a8a' }
-/** Rocket text-muted: labels, details, the clock. */
+/** Rocket text-muted: labels and countdowns. */
 const GREY = '#929497'
+/** A telemetry dot whose reading has gone stale. */
+const DIM = '#55575a'
 /** Empty track: unpainted steel. */
 const STEEL = '#3a3b3e'
 /** Seams between the bar's rings: the hangar's background. */
@@ -170,8 +178,17 @@ const TICK_R = 7
 const CAP_W = 3
 const NOSE_W = 8
 const BAR_UNITS = 1000
-const GAP = 22
-const ICON = 11
+/** Space inside a meter (label, bar, percent), on top of the row's one-cell gap. */
+const INNER = 4
+/** Space after a meter's tail, before the next meter. */
+const BETWEEN = 16
+/** A reading older than this dims the telemetry dot. */
+const STALE_MS = 10 * MINUTE
+
+/** Blink for the beacon, pulse for the telemetry dot; left out in calm mode. */
+const BLINK = '.bk{animation:bk 1.2s steps(1) infinite}@keyframes bk{50%{opacity:.25}}'
+const PULSE = '.pl{animation:pl 1s ease-in-out infinite alternate}@keyframes pl{to{opacity:.3}}'
+const NO_MOTION = '@media (prefers-reduced-motion:reduce){*{animation:none!important}}'
 
 const paint = (m: Meter) => HEX[m.level] ?? GREY
 
@@ -181,55 +198,68 @@ const run = (x: number, y: number, text: string, fill: string, bold = false) =>
   `<text x="${x.toFixed(1)}" y="${y}" fill="${fill}"${bold ? ' font-weight="600"' : ''} ` +
   `textLength="${(text.length * CH).toFixed(1)}" lengthAdjust="spacingAndGlyphs">${esc(text)}</text>`
 
-const clockIcon = (x: number, cy: number, color: string) => {
-  const r = ICON / 2 - 0.75
-  const cx = x + ICON / 2
-  return (
-    `<g fill="none" stroke="${color}" stroke-width="1.3" stroke-linecap="round">` +
-    `<circle cx="${cx.toFixed(1)}" cy="${cy}" r="${r}"/>` +
-    `<path d="M${cx.toFixed(1)} ${cy - r + 2}V${cy}l${(r * 0.55).toFixed(1)} ${(r * 0.45).toFixed(1)}"/></g>`
-  )
-}
-
-const textSvg = (body: string, width: number) => {
+const textSvg = (body: string, width: number, css = '') => {
   const w = Math.ceil(width)
   return {
     source:
       `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${TEXT_H}" viewBox="0 0 ${w} ${TEXT_H}">` +
-      `<style>text{font-size:${FONT}px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}</style>${body}</svg>`,
+      `<style>text{font-size:${FONT}px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}${css}</style>${body}</svg>`,
     width: w,
     height: TEXT_H,
   }
 }
 
-const labelSvg = (m: Meter) => textSvg(run(0, 13, m.label, GREY), m.label.length * CH)
+const labelSvg = (m: Meter) => textSvg(run(0, 13, m.label, GREY), m.label.length * CH + INNER)
 
-/** The brand, bright and bold, with a steel divider after it. */
+/** The brand stenciled on a thin steel plate, like the one hung above the rocket. */
 const brandSvg = (name: string) => {
   const label = name.toUpperCase()
   const w = Array.from(label).length * CH
+  const plateW = w + 12
   return textSvg(
-    run(0, 13, label, TICK, true) + `<rect x="${(w + 8).toFixed(1)}" y="3" width="1.5" height="12" fill="${STEEL}"/>`,
-    w + 14,
+    `<rect x=".75" y="1.25" width="${(plateW - 1.5).toFixed(1)}" height="${TEXT_H - 2.5}" rx="2" ` +
+      `fill="none" stroke="${STEEL}" stroke-width="1.5"/>` +
+      run(6, 13, label, TICK, true),
+    plateW + INNER,
   )
 }
 
-const tailSvg = (m: Meter, pad: number) => {
+/**
+ * The colored percent, a beacon when the meter is in the red, then the countdown.
+ * `animate` false (calm mode) keeps the beacon still.
+ */
+const tailSvg = (m: Meter, pad: number, animate: boolean) => {
   const pct = m.pctText ?? fmtPct(m.pct)
-  let body = run(0, 13, pct, paint(m), true)
-  let x = pct.length * CH
-  if (m.detail) {
-    body += run(x + CH, 13, m.detail, GREY)
-    x += (m.detail.length + 1) * CH
+  let body = run(INNER, 13, pct, paint(m), true)
+  let x = INNER + pct.length * CH
+  const beacon = isWarning(m)
+  if (beacon) {
+    body += `<circle${animate ? ' class="bk"' : ''} cx="${(x + 6).toFixed(1)}" cy="${TEXT_H / 2}" r="2.6" fill="${HEX.error}"/>`
+    x += 10
   }
   if (m.reset) {
-    x += 8
-    body += clockIcon(x, TEXT_H / 2, GREY)
-    x += ICON + 4
+    x += 10
     body += run(x, 13, m.reset, GREY)
     x += m.reset.length * CH
   }
-  return textSvg(body, x + pad)
+  return textSvg(body, x + pad, beacon && animate ? BLINK + NO_MOTION : '')
+}
+
+export type Telemetry = 'fresh' | 'stale' | 'refreshing'
+
+/** How the last reading stands: being fetched, fresh, or older than STALE_MS. */
+export const telemetryOf = (isRefreshing: boolean, ageMs: number): Telemetry =>
+  isRefreshing ? 'refreshing' : ageMs >= STALE_MS ? 'stale' : 'fresh'
+
+/** The telemetry dot: lit when fresh, dim when stale, pulsing while it refreshes. */
+const telemetrySvg = (t: Telemetry, animate: boolean) => {
+  const pulse = t === 'refreshing' && animate
+  const fill = t === 'stale' ? DIM : TICK
+  return textSvg(
+    `<circle${pulse ? ' class="pl"' : ''} cx="5" cy="${TEXT_H / 2}" r="3" fill="${fill}"/>`,
+    10,
+    pulse ? PULSE + NO_MOTION : '',
+  )
 }
 
 /** The bar's middle: steel track, role fill, ring seams and the "now" tick; stretches to its box. */
@@ -314,45 +344,56 @@ export const registerLimitsBand = (on: On) => {
     const at = nowAt || Date.now()
     const meters = metersOf(s, ctx, at)
     const age = at - s.at
-    const ageText = isRefreshing ? '…' : age < MINUTE ? 'now' : fmtSpan(age)
+    const telemetry = telemetryOf(isRefreshing, age)
+    const telemetryAlt =
+      telemetry === 'refreshing'
+        ? 'Usage: refreshing'
+        : `Usage read ${age < MINUTE ? 'just now' : `${fmtSpan(age)} ago`}${telemetry === 'stale' ? ' (stale)' : ''}`
+    // Calm mode keeps the beacon and the telemetry dot still.
+    const animate = lookNow !== 'calm'
 
     if (e.surface !== 'terminal') {
-      const { Box, Svg, Text } = $.ui.resolve(e)
+      const { Box, Svg } = $.ui.resolve(e)
       const plate = brand ? brandSvg(brand) : undefined
+      const dot = telemetrySvg(telemetry, animate)
       return (
         <Box flexDirection="row" flexWrap="nowrap" alignItems="center" columnGap={1}>
           {plate ? <Svg source={plate.source} width={plate.width} height={plate.height} alt={`Brand: ${brand}`} /> : null}
-          {meters.flatMap((m, i) => {
+          {meters.flatMap(m => {
             const label = labelSvg(m)
-            const tail = tailSvg(m, i < meters.length - 1 ? GAP - 8 : 0)
+            const tail = tailSvg(m, BETWEEN, animate)
+            const tailAlt = m.isNumberOnly ? m.alt : `${m.pctText ?? fmtPct(m.pct)}${isWarning(m) ? ', warning' : ''}`
             return [
               <Svg source={label.source} width={label.width} height={label.height} alt={m.label} />,
-              <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
-                <Svg source={capSvg(m, 'left')} width={CAP_W} height={TEXT_H} alt="bar start" />
+              m.isNumberOnly ? null : (
                 <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
-                  <Svg source={barSvg(m)} height={TEXT_H} alt={m.alt} />
+                  <Svg source={capSvg(m, 'left')} width={CAP_W} height={TEXT_H} alt="bar start" />
+                  <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
+                    <Svg source={barSvg(m)} height={TEXT_H} alt={m.alt} />
+                  </Box>
+                  <Svg source={capSvg(m, 'right')} width={NOSE_W} height={TEXT_H} alt="bar end" />
                 </Box>
-                <Svg source={capSvg(m, 'right')} width={NOSE_W} height={TEXT_H} alt="bar end" />
-              </Box>,
-              <Svg source={tail.source} width={tail.width} height={tail.height} alt={m.pctText ?? fmtPct(m.pct)} />,
+              ),
+              <Svg source={tail.source} width={tail.width} height={tail.height} alt={tailAlt} />,
             ]
           })}
-          <Text dimColor>⟳ {ageText}</Text>
+          <Svg source={dot.source} width={dot.width} height={dot.height} alt={telemetryAlt} />
         </Box>
       )
     }
 
     const { Box, Text } = $.ui.resolve(e)
+    const barMeters = meters.filter(m => !m.isNumberOnly).length
     const textCols = meters.reduce(
       (n, m) =>
         n + m.label.length + 2 + (m.pctText ?? fmtPct(m.pct)).length +
-        (m.detail ? m.detail.length + 1 : 0) + (m.reset ? m.reset.length + 3 : 0),
+        (isWarning(m) ? 2 : 0) + (m.reset ? m.reset.length + 1 : 0),
       0,
     )
     const brandLabel = brand ? brand.toUpperCase() : ''
     const brandCols = brandLabel ? Array.from(brandLabel).length + 5 : 0
-    const spare = e.props.bodyColumns - textCols - 3 * meters.length - (ageText.length + 4) - brandCols
-    const barWidth = Math.min(40, Math.max(8, Math.floor(spare / meters.length)))
+    const spare = e.props.bodyColumns - textCols - 3 * meters.length - 4 - brandCols
+    const barWidth = Math.min(40, Math.max(8, Math.floor(spare / Math.max(1, barMeters))))
     return (
       <Box flexDirection="row" flexWrap="wrap" columnGap={3}>
         {brandLabel ? (
@@ -364,15 +405,18 @@ export const registerLimitsBand = (on: On) => {
         {meters.map(m => (
           <Box flexDirection="row">
             <Text dimColor>{m.label} </Text>
-            {barRuns(m, barWidth).map(r => (
-              <Text color={r.color}>{r.text}</Text>
-            ))}
-            <Text color={m.level} bold> {m.pctText ?? fmtPct(m.pct)}</Text>
-            {m.detail ? <Text dimColor> {m.detail}</Text> : null}
-            {m.reset ? <Text dimColor> ◷ {m.reset}</Text> : null}
+            {m.isNumberOnly
+              ? null
+              : barRuns(m, barWidth).map(r => <Text color={r.color}>{r.text}</Text>)}
+            <Text color={m.level} bold>
+              {m.isNumberOnly ? '' : ' '}
+              {m.pctText ?? fmtPct(m.pct)}
+            </Text>
+            {isWarning(m) ? <Text color="error"> ●</Text> : null}
+            {m.reset ? <Text dimColor> {m.reset}</Text> : null}
           </Box>
         ))}
-        <Text dimColor>⟳ {ageText}</Text>
+        {telemetry === 'stale' ? <Text dimColor>•</Text> : telemetry === 'refreshing' ? <Text dimColor>◦</Text> : <Text>•</Text>}
       </Box>
     )
   })

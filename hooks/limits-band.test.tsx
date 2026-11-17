@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { swapLimitsRow } from './limits-band'
+import { countdown, swapLimitsRow, telemetryOf } from './limits-band'
 
 const BAND = {
   plugin: 'rocket-factory',
@@ -47,19 +47,26 @@ test('the Rocket band draws Limits figures on desktop and terminal', async ($, o
 
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
-  // Label, two ends around a stretching middle, and a tail per meter: 5HR, WK, CTX.
-  expect(svgs).toHaveLength(15)
+  // 5HR and WK: label, two ends around a stretching middle, and a tail. CTX: label and
+  // its number, no bar. Then the telemetry dot.
+  expect(svgs).toHaveLength(13)
   for (const svg of svgs) expect(svg.props.alt.trim()).not.toBe('')
   // Rocket steel track and ring seams, not Limits' greens.
   expect(svgs.some(s => s.props.source.includes('#3a3b3e'))).toBe(true)
   expect(svgs.some(s => s.props.source.includes('#3fb950'))).toBe(false)
-  expect(await desk.find({ type: 'Text', text: /⟳/ })).toBeDefined()
+  expect(svgs.at(-1)!.props.alt).toBe('Usage read just now')
+  expect(svgs.some(s => s.props.alt.includes('84.2k/200k'))).toBe(true)
+  expect(svgs.some(s => s.props.source.includes('>T-2h</text>'))).toBe(true)
   await desk.unmount()
 
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  for (const text of ['5HR ', 'WK ', 'CTX ', ' 24%', ' 61%', '84.2k/200k', /▰/]) {
+  for (const text of ['5HR ', 'WK ', 'CTX ', /24%/, /61%/, /42%/, ' T-2h', /▰/, '•']) {
     expect(await term.find({ type: 'Text', text })).toBeDefined()
   }
+  // The context shows as a number, with no token count. WK, 61% used with 72h of 168h
+  // left, is on track to run out before its reset, so it is red and carries the beacon.
+  expect(await term.find({ type: 'Text', text: /84\.2k/ })).toBeUndefined()
+  expect(await term.findAll({ type: 'Text', text: ' ●' })).toHaveLength(1)
   await term.unmount()
 })
 
@@ -110,7 +117,7 @@ test('a brand leads the band on desktop and terminal', async ($, on) => {
 
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
-  expect(svgs).toHaveLength(16)
+  expect(svgs).toHaveLength(14)
   expect(svgs[0]!.props.alt).toBe('Brand: Acme')
   expect(svgs[0]!.props.source).toContain('>ACME</text>')
   await desk.unmount()
@@ -118,4 +125,47 @@ test('a brand leads the band on desktop and terminal', async ($, on) => {
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await term.find({ type: 'Text', text: 'ACME' })).toBeDefined()
   await term.unmount()
+})
+
+test('a meter in the red gets a beacon; calm mode keeps it still', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  const hot = { ...READING, 'limits.context': { tokens: 180_000, window: 200_000, percent: 90 } }
+  seed(on, hot)
+  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
+  const ctx = svgs.find(s => s.props.alt.startsWith('Context 90%'))!
+  expect(ctx.props.source).toContain('class="bk"')
+  await desk.unmount()
+  const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await term.find({ type: 'Text', text: ' ●' })).toBeDefined()
+  await term.unmount()
+})
+
+test('calm mode draws the beacon without blinking', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  seed(on, {
+    ...READING,
+    'limits.context': { tokens: 180_000, window: 200_000, percent: 90 },
+    'rocket-factory.look': 'calm',
+  })
+  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
+  const ctx = svgs.find(s => s.props.alt.startsWith('Context 90%'))!
+  expect(ctx.props.source).toContain('<circle')
+  expect(ctx.props.source).not.toContain('class="bk"')
+  await desk.unmount()
+})
+
+test('countdowns and telemetry', () => {
+  expect(countdown(2 * 3_600_000)).toBe('T-2h')
+  expect(countdown(-5)).toBe('T-0')
+  expect(telemetryOf(true, 0)).toBe('refreshing')
+  expect(telemetryOf(false, 60_000)).toBe('fresh')
+  expect(telemetryOf(false, 11 * 60_000)).toBe('stale')
 })

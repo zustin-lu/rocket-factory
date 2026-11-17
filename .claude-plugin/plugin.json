@@ -1,6 +1,6 @@
 {
   "name": "rocket-factory",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Monotone rocket factory backdrop: a busy hangar where your session stacks a rocket ring by ring, then static-fires it. Also skins the Limits band in the same look.",
   "types": "./types/index.d.ts",
   "author": {
