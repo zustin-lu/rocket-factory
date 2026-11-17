@@ -137,7 +137,8 @@ test('a meter in the red vents vapor', async ($, on) => {
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
   const ctx = svgs.find(s => s.props.alt.startsWith('Context 90%'))!
-  expect(ctx.props.source).toContain('class="vp"')
+  expect(ctx.props.source).toContain('class="vp2"')
+  expect(ctx.props.source).not.toMatch(/\{animation-delay:/)
   await desk.unmount()
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await term.find({ type: 'Text', text: ' ●' })).toBeDefined()
@@ -185,6 +186,8 @@ test('while Claude works, propellant flows along the bars; at rest only the fros
   const working = await bars(true)
   expect(working).toHaveLength(2)
   for (const src of working) {
+    expect(src).not.toContain('var(')
+    expect(src).not.toContain('--')
     expect(src).toContain('class="pf"')
     expect(src).toContain('class="fl"')
   }

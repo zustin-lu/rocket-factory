@@ -188,13 +188,19 @@ const BETWEEN = 16
 const STALE_MS = 10 * MINUTE
 
 /** Vapor puffs off a red meter, like a tank venting before launch; left out in calm mode. */
+// Each puff carries the whole `animation:` shorthand, delay included: a rule setting
+// `animation-delay` alone froze the desktop backdrop, so none is used anywhere.
 const VENT =
-  '.vp{animation:vp 2.4s ease-out infinite;transform-box:fill-box;transform-origin:50% 50%}' +
-  '.vp2{animation-delay:.8s}.vp3{animation-delay:1.6s}' +
+  '.vp1,.vp2,.vp3{transform-box:fill-box;transform-origin:50% 50%}' +
+  '.vp1{animation:vp 2.4s ease-out infinite}.vp2{animation:vp 2.4s ease-out infinite .8s}.vp3{animation:vp 2.4s ease-out infinite 1.6s}' +
   '@keyframes vp{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.85}100%{transform:translate(3px,-11px) scale(1.6);opacity:0}}'
-/** Propellant flowing along a bar's fill, and its frost line flickering, while Claude works. */
-const LOADING =
-  '.pf{animation:pf 2.6s linear infinite}@keyframes pf{0%{transform:translateX(0);opacity:0}15%,80%{opacity:1}100%{transform:translateX(var(--run));opacity:0}}' +
+/**
+ * Propellant flowing `run` units along a bar's fill, and its frost line flickering, while
+ * Claude works. The distance is written in: the app's SVG scrub drops a <style> that uses
+ * CSS custom properties (var(--x)), so none are used.
+ */
+const loading = (run: number) =>
+  `.pf{animation:pf 2.6s linear infinite}@keyframes pf{0%{transform:translateX(0);opacity:0}15%,80%{opacity:1}100%{transform:translateX(${run.toFixed(1)}px);opacity:0}}` +
   '.fl{animation:fl 1.1s steps(2) infinite}@keyframes fl{50%{opacity:.45}}'
 /** Pulse for the telemetry dot while it refreshes. */
 const PULSE = '.pl{animation:pl 1s ease-in-out infinite alternate}@keyframes pl{to{opacity:.3}}'
@@ -246,7 +252,7 @@ const tailSvg = (m: Meter, pad: number, animate: boolean) => {
   if (venting) {
     const cx = (x + 7).toFixed(1)
     body += animate
-      ? ['vp', 'vp vp2', 'vp vp3']
+      ? ['vp1', 'vp2', 'vp3']
           .map(c => `<circle class="${c}" cx="${cx}" cy="13" r="2.2" fill="${VAPOR}" opacity="0"/>`)
           .join('')
       : `<circle cx="${cx}" cy="11" r="2.4" fill="${VAPOR}" opacity=".7"/>` +
@@ -293,7 +299,7 @@ const barSvg = (m: Meter, isLoading: boolean) => {
   const flowW = Math.min(140, fill * 0.6)
   if (isLoading && fill >= 60) {
     body +=
-      `<rect class="pf" style="--run:${(fill - flowW).toFixed(1)}px" x="0" y="${by}" width="${flowW.toFixed(1)}" ` +
+      `<rect class="pf" x="0" y="${by}" width="${flowW.toFixed(1)}" ` +
       `height="${BAR_H}" fill="${VAPOR}" opacity="0"/>`
   }
   for (let i = 1; i < BAR_RINGS; i++) {
@@ -317,7 +323,7 @@ const barSvg = (m: Meter, isLoading: boolean) => {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_UNITS}" height="${TEXT_H}" ` +
     `viewBox="0 0 ${BAR_UNITS} ${TEXT_H}" preserveAspectRatio="none">` +
-    `${isLoading ? `<style>${LOADING}${NO_MOTION}</style>` : ''}${body}</svg>`
+    `${isLoading ? `<style>${loading(Math.max(0, fill - flowW))}${NO_MOTION}</style>` : ''}${body}</svg>`
   )
 }
 

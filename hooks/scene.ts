@@ -97,15 +97,25 @@ const LOOP_STYLE = `
 .vt{animation:vt 6s ease-out infinite}@keyframes vt{0%{transform:translate(0,0) scale(.6);opacity:0}20%{opacity:.22}100%{transform:translate(-26px,-40px) scale(1.8);opacity:0}}
 .vt2{animation:vt 6s ease-out infinite 3s}
 .cl{animation:cl 12s steps(1) infinite}@keyframes cl{0%,82%{opacity:0}83%,94%{opacity:1}95%,100%{opacity:0}}
-.sc{transform-box:fill-box;transform-origin:0 50%;animation:sc 2.4s steps(4) infinite}@keyframes sc{0%{transform:scaleX(.3)}50%{transform:scaleX(1)}100%{transform:scaleX(.6)}}
+.sc{transform-box:fill-box;transform-origin:0 50%;animation:sc 2.4s steps(4) infinite}.sc2{transform-box:fill-box;transform-origin:0 50%;animation:sc 2.4s steps(4) infinite .6s}@keyframes sc{0%{transform:scaleX(.3)}50%{transform:scaleX(1)}100%{transform:scaleX(.6)}}
 .sw{animation:sw 9s ease-in-out infinite}@keyframes sw{0%{transform:translateY(130px);opacity:0}30%,70%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
 .hud{animation:bc 1.4s steps(1) infinite}
 .tk{transform-box:fill-box;transform-origin:50% 100%;animation:tk 14s ease-out both}@keyframes tk{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-.tl{animation:tl 14s ease-out both}@keyframes tl{from{transform:translateY(0)}to{transform:translateY(var(--rise))}}
-.vw{animation:vw 4.5s ease-out infinite}@keyframes vw{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.3}100%{transform:translate(22px,-34px) scale(2);opacity:0}}
-.vw2{animation-delay:1.5s}.vw3{animation-delay:3s}
+.tv1{animation:tv 4.5s ease-out infinite}.tv2{animation:tv 4.5s ease-out infinite 1.5s}.tv3{animation:tv 4.5s ease-out infinite 3s}
+@keyframes tv{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.3}100%{transform:translate(22px,-34px) scale(2);opacity:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 `
+
+/** Steam puffs of the static fire, each class with its whole shorthand, delay included. */
+const STEAM_CLASSES = [0, 1, 2]
+  .map(i => {
+    const delay = (5.8 + i * 0.35).toFixed(2)
+    return (
+      `.stL${i},.stR${i}{transform-box:fill-box;transform-origin:50% 50%}` +
+      `.stL${i}{animation:stL 4.5s ease-out ${delay}s both}.stR${i}{animation:stR 4.5s ease-out ${delay}s both}`
+    )
+  })
+  .join('')
 
 /** One-shot animations for the redraw right after a turn: the crane brings a ring. */
 const stackStyle = (drop: number, fires: boolean) => `
@@ -116,8 +126,8 @@ const stackStyle = (drop: number, fires: boolean) => `
 .sf{animation:${fires ? 'sf 2.8s ease-in-out 5.6s both' : 'none'}}@keyframes sf{0%{opacity:0}15%,85%{opacity:1}100%{opacity:0}}
 .sm{animation:sm 5s ease-out both}@keyframes sm{0%,61%{opacity:0}63%{opacity:1}100%{opacity:0}}
 .sk{animation:sk 5s steps(1) both}@keyframes sk{0%,61%{opacity:0}62%,74%{opacity:1}75%,100%{opacity:0}}
-.stL{animation:${fires ? 'stL 4.5s ease-out 5.8s both' : 'none'}}@keyframes stL{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(-110px,-14px) scale(2.4);opacity:0}}
-.stR{animation:${fires ? 'stR 4.5s ease-out 5.8s both' : 'none'}}@keyframes stR{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(110px,-14px) scale(2.4);opacity:0}}
+${fires ? STEAM_CLASSES : ''}@keyframes stL{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(-110px,-14px) scale(2.4);opacity:0}}
+@keyframes stR{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(110px,-14px) scale(2.4);opacity:0}}
 `
 
 export type SceneOptions = {
@@ -200,7 +210,7 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
       (animate
         ? `<g class="cl"><path d="M732 270L738 270L742 296L728 296Z" fill="#fff" opacity=".35"/><g class="dm" fill="#fff"><ellipse cx="735" cy="276" rx="2" ry="1.2"/><ellipse cx="735" cy="283" rx="1.6" ry="1"/><ellipse cx="735" cy="290" rx="1.3" ry=".8"/></g><rect x="712" y="250" width="70" height="50" fill="#fff" opacity=".04"/></g>`
         : '') +
-      `<rect x="756" y="262" width="20" height="12" fill="#101112"/><rect class="sc" x="758" y="265" width="14" height="2" fill="${G.m4}"/><rect class="sc" style="animation-delay:.6s" x="758" y="269" width="10" height="2" fill="${G.m2}"/>`,
+      `<rect x="756" y="262" width="20" height="12" fill="#101112"/><rect class="sc" x="758" y="265" width="14" height="2" fill="${G.m4}"/><rect class="sc2" x="758" y="269" width="10" height="2" fill="${G.m2}"/>`,
   )
 
   // ---------- floor ----------
@@ -247,8 +257,8 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
         .map(i => {
           const y = 392 - i * 5
           return (
-            `<ellipse class="stL" style="animation-delay:${(5.8 + i * 0.35).toFixed(2)}s;transform-box:fill-box;transform-origin:50% 50%" cx="182" cy="${y}" rx="12" ry="5" opacity="0"/>` +
-            `<ellipse class="stR" style="animation-delay:${(5.8 + i * 0.35).toFixed(2)}s;transform-box:fill-box;transform-origin:50% 50%" cx="194" cy="${y}" rx="12" ry="5" opacity="0"/>`
+            `<ellipse class="stL${i}" cx="182" cy="${y}" rx="12" ry="5" opacity="0"/>` +
+            `<ellipse class="stR${i}" cx="194" cy="${y}" rx="12" ry="5" opacity="0"/>`
           )
         })
         .join('')}</g>`,
@@ -273,8 +283,8 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
     const height = rings * RH
     o.push(
       `<rect class="tk" x="${RX}" y="${top}" width="${RW}" height="${height}" fill="#e9eef2" opacity=".2"/>` +
-        `<rect class="tl" style="--rise:-${height}px" x="${RX - 1}" y="${BASE - 1}" width="${RW + 2}" height="1.4" fill="#f4f4f4"/>` +
-        `<g fill="#e6e6e6">${['vw', 'vw vw2', 'vw vw3'].map(c => `<circle class="${c}" cx="${RX + RW - 3}" cy="${top + 4}" r="3" opacity="0"/>`).join('')}</g>`,
+        `<rect class="tl" x="${RX - 1}" y="${BASE - 1}" width="${RW + 2}" height="1.4" fill="#f4f4f4"/>` +
+        `<g fill="#e6e6e6">${['tv1', 'tv2', 'tv3'].map(c => `<circle class="${c}" cx="${RX + RW - 3}" cy="${top + 4}" r="3" opacity="0"/>`).join('')}</g>`,
     )
   }
   // the new ring's weld seam flares white as it lands, then cools to steel
@@ -345,7 +355,14 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
     o.push(`<text class="hud" x="140" y="167" ${mono} fill="${G.l4}">WELDING</text>`)
   }
 
-  const style = animate ? `<style>${LOOP_STYLE}${stacking ? stackStyle(drop, complete) : ''}</style>` : ''
+  // The frost line's climb is written per redraw, with no CSS custom properties.
+  // Rule of this file: every animated class carries the whole `animation:` shorthand,
+  // delay included. A rule that sets `animation-delay` alone froze the desktop backdrop.
+  const tanking =
+    f.working && rings > 0
+      ? `.tl{animation:tl 14s ease-out both}@keyframes tl{from{transform:translateY(0)}to{transform:translateY(-${rings * RH}px)}}`
+      : ''
+  const style = animate ? `<style>${LOOP_STYLE}${tanking}${stacking ? stackStyle(drop, complete) : ''}</style>` : ''
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMax slice">${style}${o.join('')}</svg>`
 }
