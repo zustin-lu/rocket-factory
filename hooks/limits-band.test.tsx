@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { countdown, swapLimitsRow, telemetryOf } from './limits-band'
+import { countdown, isFinalCountdown, swapLimitsRow, telemetryOf, weldFlare } from './limits-band'
 
 const BAND = {
   plugin: 'rocket-factory',
@@ -196,4 +196,56 @@ test('while Claude works, propellant flows along the bars; at rest only the fros
     expect(src).not.toContain('class="pf"')
     expect(src).toContain('stroke-opacity=".8"')
   }
+})
+
+test('idle band: the now tick breathes, the dot beats, the plate glints; calm keeps all still', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  const sources = async (look: string) => {
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+    const svgs = (await ui.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
+    await ui.unmount()
+    return svgs
+  }
+  seed(on, { ...READING, 'rocket-factory.brand': 'Acme' })
+  const svgs = await sources('on')
+  expect(svgs.find(s => s.props.alt.startsWith('5-hour'))!.props.source).toContain('class="bt"')
+  expect(svgs.at(-1)!.props.source).toContain('class="hb"')
+  expect(svgs[0]!.props.source).toContain('class="gl"')
+  for (const s of svgs) {
+    expect(s.props.source).not.toMatch(/\{animation-delay:/)
+    expect(s.props.source).not.toContain('var(')
+    // A moving piece goes into a frame, where the desktop plays CSS animation; a still one stays an image.
+    expect((s.props as { isInteractive?: boolean }).isInteractive === true).toBe(s.props.source.includes('animation:'))
+  }
+})
+
+test('calm mode: no idle animation', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  seed(on, { ...READING, 'rocket-factory.brand': 'Acme', 'rocket-factory.look': 'calm' })
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const svgs = (await ui.findAll({ type: 'Svg' })) as unknown as { props: { source: string } }[]
+  await ui.unmount()
+  for (const s of svgs) expect(s.props.source).not.toContain('animation:')
+})
+
+test('a seam flares once when the fill crosses into a new ring', () => {
+  const t = 1_000_000
+  expect(weldFlare('T', 20, t)).toBeUndefined() // first reading: quiet
+  expect(weldFlare('T', 24, t + 10)).toBeUndefined() // same ring
+  expect(weldFlare('T', 26, t + 20)).toBe(2) // 25% is the second seam
+  expect(weldFlare('T', 26, t + 1000)).toBe(2) // still playing on a redraw
+  expect(weldFlare('T', 26, t + 5000)).toBeUndefined() // played out
+  expect(weldFlare('T', 3, t + 6000)).toBeUndefined() // window reset: no flare
+})
+
+test('the final countdown is the last hour before a reset', () => {
+  expect(isFinalCountdown(30 * 60_000)).toBe(true)
+  expect(isFinalCountdown(2 * 3_600_000)).toBe(false)
+  expect(isFinalCountdown(0)).toBe(false)
 })

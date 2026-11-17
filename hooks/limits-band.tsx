@@ -95,6 +95,8 @@ export type Meter = {
   pct: number
   level: Level
   reset?: string
+  /** The reset is under an hour away: the countdown blinks. */
+  isFinal?: boolean
   /** Where "now" sits in the window, 0–1. */
   elapsed?: number
   /** Shown in place of the percent while there is none yet. */
@@ -107,6 +109,9 @@ export type Meter = {
 /** A meter in the red: 85% or more, or on track to run out before the reset. Vents vapor. */
 export const isWarning = (m: Meter) => m.level === 'error'
 
+/** Under an hour to the reset, and not yet due: the final countdown. */
+export const isFinalCountdown = (msLeft: number) => msLeft > 0 && msLeft < HOUR
+
 const toMeter = (raw: LimitsLimit, at: number): Meter => {
   const l = current(raw, at)
   const pace = paceOf(l, at)
@@ -118,6 +123,7 @@ const toMeter = (raw: LimitsLimit, at: number): Meter => {
     // On track to run out before the reset: red, as Limits does.
     level: runsOut ? 'error' : tone(l.percentUsed),
     reset,
+    isFinal: l.resetsAt ? isFinalCountdown(Date.parse(l.resetsAt) - at) : false,
     elapsed: pace ? pace.elapsedPct / 100 : undefined,
     alt:
       `${longLabelOf(l.kind)} limit ${fmtPct(l.percentUsed)} used` +
@@ -205,6 +211,54 @@ const loading = (run: number) =>
 /** Pulse for the telemetry dot while it refreshes. */
 const PULSE = '.pl{animation:pl 1s ease-in-out infinite alternate}@keyframes pl{to{opacity:.3}}'
 const NO_MOTION = '@media (prefers-reduced-motion:reduce){*{animation:none!important}}'
+/** The "now" tick breathes like the tower beacon. */
+const BEACON = '.bt{animation:bt 3.2s ease-in-out infinite}@keyframes bt{0%,100%{opacity:1}50%{opacity:.3}}'
+/** A seam flares white as the fill crosses into the next ring, then cools (plays once). */
+const WELD =
+  '.wf{animation:wf 2.4s ease-out both}@keyframes wf{0%{opacity:0}8%{opacity:1}100%{opacity:0}}' +
+  '.wk{animation:wk 2.4s steps(2) both}@keyframes wk{0%,40%{opacity:1}41%,100%{opacity:0}}'
+/** The telemetry dot's heartbeat while the reading is fresh: a blip and a ring going out. */
+const HEARTBEAT =
+  '.hb,.hr{transform-box:fill-box;transform-origin:50% 50%}' +
+  '.hb{animation:hb 3s ease-out infinite}@keyframes hb{0%{transform:scale(1)}6%{transform:scale(1.45)}16%,100%{transform:scale(1)}}' +
+  '.hr{animation:hr 3s ease-out infinite}@keyframes hr{0%{transform:scale(1);opacity:.7}45%,100%{transform:scale(2.6);opacity:0}}'
+/** The final countdown blinks slowly. */
+const FINAL = '.fc{animation:fc 2s steps(1) infinite}@keyframes fc{50%{opacity:.35}}'
+/** A light streak crosses the brand plate every so often. */
+const glint = (w: number) =>
+  `.gl{animation:gl 26s linear infinite}@keyframes gl{0%,88%{transform:translateX(-16px)}100%{transform:translateX(${Math.ceil(w + 16)}px)}}`
+
+// ---------- one-shot weld flare ----------
+
+/** Each bar's last ring and when its seam last flared; module memory, so a reload starts quiet. */
+const welds = new Map<string, { ring: number; seam?: number; at: number }>()
+/** How long a flare stays in the drawing, so redraws in that time keep it playing. */
+const FLARE_MS = 3000
+
+/**
+ * The seam (1 to BAR_RINGS - 1) to flare when this bar's fill has just crossed into a
+ * new ring, else undefined. The first reading after a load never flares.
+ */
+export const weldFlare = (key: string, pct: number, now: number): number | undefined => {
+  const ring = Math.min(BAR_RINGS - 1, Math.floor((Math.max(0, pct) / 100) * BAR_RINGS))
+  const last = welds.get(key)
+  if (last === undefined || ring < last.ring) {
+    welds.set(key, { ring, at: now })
+    return undefined
+  }
+  if (ring > last.ring && ring > 0) {
+    welds.set(key, { ring, seam: ring, at: now })
+    return ring
+  }
+  return last.seam !== undefined && now - last.at < FLARE_MS ? last.seam : undefined
+}
+
+/**
+ * True for an SVG that animates. The desktop app draws a plain Svg as an image, where CSS
+ * animation does not play; one drawn with `isInteractive` goes into a sandboxed frame, as
+ * the hangar backdrop does, and plays. Only the moving pieces pay for a frame.
+ */
+export const isMoving = (source: string) => source.includes('animation:')
 
 const paint = (m: Meter) => HEX[m.level] ?? GREY
 
@@ -227,16 +281,22 @@ const textSvg = (body: string, width: number, css = '') => {
 
 const labelSvg = (m: Meter) => textSvg(run(0, 13, m.label, GREY), m.label.length * CH + INNER)
 
-/** The brand stenciled on a thin steel plate, like the one hung above the rocket. */
-const brandSvg = (name: string) => {
+/** The brand stenciled on a thin steel plate, like the one hung above the rocket; a glint crosses it. */
+const brandSvg = (name: string, animate: boolean) => {
   const label = name.toUpperCase()
   const w = Array.from(label).length * CH
   const plateW = w + 12
+  const shine = animate
+    ? `<clipPath id="plate"><rect x="1.5" y="2" width="${(plateW - 3).toFixed(1)}" height="${TEXT_H - 4}" rx="1.5"/></clipPath>` +
+      `<g clip-path="url(#plate)"><path class="gl" d="M4 0h6l-6 ${TEXT_H}h-6z" fill="#fff" opacity=".22"/></g>`
+    : ''
   return textSvg(
     `<rect x=".75" y="1.25" width="${(plateW - 1.5).toFixed(1)}" height="${TEXT_H - 2.5}" rx="2" ` +
       `fill="none" stroke="${STEEL}" stroke-width="1.5"/>` +
-      run(6, 13, label, TICK, true),
+      run(6, 13, label, TICK, true) +
+      shine,
     plateW + INNER,
+    animate ? glint(plateW) + NO_MOTION : '',
   )
 }
 
@@ -259,12 +319,16 @@ const tailSvg = (m: Meter, pad: number, animate: boolean) => {
         `<circle cx="${(x + 9.5).toFixed(1)}" cy="7" r="1.8" fill="${VAPOR}" opacity=".45"/>`
     x += 12
   }
+  const final = m.isFinal === true && animate
   if (m.reset) {
     x += 10
-    body += run(x, 13, m.reset, GREY)
+    body += final
+      ? `<g class="fc">${run(x, 13, m.reset, TICK, true)}</g>`
+      : run(x, 13, m.reset, m.isFinal ? TICK : GREY, m.isFinal === true)
     x += m.reset.length * CH
   }
-  return textSvg(body, x + pad, venting && animate ? VENT + NO_MOTION : '')
+  const css = (venting && animate ? VENT : '') + (final ? FINAL : '')
+  return textSvg(body, x + pad, css ? css + NO_MOTION : '')
 }
 
 export type Telemetry = 'fresh' | 'stale' | 'refreshing'
@@ -273,19 +337,22 @@ export type Telemetry = 'fresh' | 'stale' | 'refreshing'
 export const telemetryOf = (isRefreshing: boolean, ageMs: number): Telemetry =>
   isRefreshing ? 'refreshing' : ageMs >= STALE_MS ? 'stale' : 'fresh'
 
-/** The telemetry dot: lit when fresh, dim when stale, pulsing while it refreshes. */
+/** The telemetry dot: a heartbeat when fresh, dim when stale, pulsing while it refreshes. */
 const telemetrySvg = (t: Telemetry, animate: boolean) => {
   const pulse = t === 'refreshing' && animate
+  const beat = t === 'fresh' && animate
   const fill = t === 'stale' ? DIM : TICK
+  const cx = 9
   return textSvg(
-    `<circle${pulse ? ' class="pl"' : ''} cx="5" cy="${TEXT_H / 2}" r="3" fill="${fill}"/>`,
-    10,
-    pulse ? PULSE + NO_MOTION : '',
+    (beat ? `<circle class="hr" cx="${cx}" cy="${TEXT_H / 2}" r="3" fill="none" stroke="${TICK}" stroke-width="1"/>` : '') +
+      `<circle${pulse ? ' class="pl"' : beat ? ' class="hb"' : ''} cx="${cx}" cy="${TEXT_H / 2}" r="3" fill="${fill}"/>`,
+    18,
+    pulse ? PULSE + NO_MOTION : beat ? HEARTBEAT + NO_MOTION : '',
   )
 }
 
 /** The bar's middle: steel track, role fill, ring seams and the "now" tick; stretches to its box. */
-const barSvg = (m: Meter, isLoading: boolean) => {
+const barSvg = (m: Meter, isLoading: boolean, animate: boolean, flareSeam?: number) => {
   const by = BAR_CY - BAR_H / 2
   const fill = Math.min(1, Math.max(0, m.pct / 100)) * BAR_UNITS
   let body = `<rect x="0" y="${by}" width="${BAR_UNITS}" height="${BAR_H}" fill="${STEEL}"/>`
@@ -308,6 +375,15 @@ const barSvg = (m: Meter, isLoading: boolean) => {
       `<line x1="${sx}" y1="${by}" x2="${sx}" y2="${by + BAR_H}" stroke="${SEAM}" ` +
       `stroke-width="1.5" vector-effect="non-scaling-stroke"/>`
   }
+  // A seam just welded on: a white flare and a few sparks, played once.
+  if (flareSeam !== undefined && animate) {
+    const sx = (flareSeam / BAR_RINGS) * BAR_UNITS
+    body +=
+      `<rect class="wf" x="${(sx - 10).toFixed(1)}" y="${by - 2}" width="20" height="${BAR_H + 4}" fill="#fff" opacity="0"/>` +
+      `<g class="wk" opacity="0" fill="#fff">` +
+      `<rect x="${(sx - 18).toFixed(1)}" y="${by - 3}" width="4" height="1.2"/><rect x="${(sx + 14).toFixed(1)}" y="${by + BAR_H + 2}" width="4" height="1.2"/>` +
+      `<rect x="${(sx + 6).toFixed(1)}" y="${by - 4}" width="3" height="1"/></g>`
+  }
   // The frost line at the fill level; it flickers while loading.
   if (fill > 0 && fill < BAR_UNITS) {
     body +=
@@ -317,13 +393,17 @@ const barSvg = (m: Meter, isLoading: boolean) => {
   if (m.elapsed !== undefined) {
     const tx = Math.min(BAR_UNITS, Math.max(0, m.elapsed * BAR_UNITS)).toFixed(1)
     body +=
-      `<line x1="${tx}" y1="${BAR_CY - TICK_R}" x2="${tx}" y2="${BAR_CY + TICK_R}" stroke="${TICK}" ` +
+      `<line${animate ? ' class="bt"' : ''} x1="${tx}" y1="${BAR_CY - TICK_R}" x2="${tx}" y2="${BAR_CY + TICK_R}" stroke="${TICK}" ` +
       `stroke-width="1.5" vector-effect="non-scaling-stroke"/>`
   }
+  const css =
+    (isLoading ? loading(Math.max(0, fill - flowW)) : '') +
+    (animate && m.elapsed !== undefined ? BEACON : '') +
+    (animate && flareSeam !== undefined ? WELD : '')
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_UNITS}" height="${TEXT_H}" ` +
     `viewBox="0 0 ${BAR_UNITS} ${TEXT_H}" preserveAspectRatio="none">` +
-    `${isLoading ? `<style>${loading(Math.max(0, fill - flowW))}${NO_MOTION}</style>` : ''}${body}</svg>`
+    `${css ? `<style>${css}${NO_MOTION}</style>` : ''}${body}</svg>`
   )
 }
 
@@ -396,14 +476,16 @@ export const registerLimitsBand = (on: On) => {
 
     if (e.surface !== 'terminal') {
       const { Box, Svg } = $.ui.resolve(e)
-      const plate = brand ? brandSvg(brand) : undefined
+      const plate = brand ? brandSvg(brand, animate) : undefined
+      const now = Date.now()
       const dot = telemetrySvg(telemetry, animate)
       return (
         <Box flexDirection="row" flexWrap="nowrap" alignItems="center" columnGap={1}>
-          {plate ? <Svg source={plate.source} width={plate.width} height={plate.height} alt={`Brand: ${brand}`} /> : null}
+          {plate ? <Svg source={plate.source} width={plate.width} height={plate.height} alt={`Brand: ${brand}`} isInteractive={isMoving(plate.source)} /> : null}
           {meters.flatMap(m => {
             const label = labelSvg(m)
             const tail = tailSvg(m, BETWEEN, animate)
+            const bar = m.isNumberOnly ? '' : barSvg(m, isLoading, animate, weldFlare(m.label, m.pct, now))
             const tailAlt = m.isNumberOnly ? m.alt : `${m.pctText ?? fmtPct(m.pct)}${isWarning(m) ? ', venting' : ''}`
             return [
               <Svg source={label.source} width={label.width} height={label.height} alt={m.label} />,
@@ -411,15 +493,15 @@ export const registerLimitsBand = (on: On) => {
                 <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
                   <Svg source={capSvg(m, 'left')} width={CAP_W} height={TEXT_H} alt="bar start" />
                   <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
-                    <Svg source={barSvg(m, isLoading)} height={TEXT_H} alt={m.alt} />
+                    <Svg source={bar} height={TEXT_H} alt={m.alt} isInteractive={isMoving(bar)} />
                   </Box>
                   <Svg source={capSvg(m, 'right')} width={NOSE_W} height={TEXT_H} alt="bar end" />
                 </Box>
               ),
-              <Svg source={tail.source} width={tail.width} height={tail.height} alt={tailAlt} />,
+              <Svg source={tail.source} width={tail.width} height={tail.height} alt={tailAlt} isInteractive={isMoving(tail.source)} />,
             ]
           })}
-          <Svg source={dot.source} width={dot.width} height={dot.height} alt={telemetryAlt} />
+          <Svg source={dot.source} width={dot.width} height={dot.height} alt={telemetryAlt} isInteractive={isMoving(dot.source)} />
         </Box>
       )
     }

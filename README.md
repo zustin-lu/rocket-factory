@@ -66,15 +66,20 @@ reduced-motion setting, keep everything still.
 ```
 
 - **5HR / WK**: share of the window used. The bright tick on the bar marks how far
-  into the window you are; `T-2h` counts down to the reset.
+  into the window you are, and breathes like a tower beacon; `T-2h` counts down to
+  the reset, and blinks in the last hour. When a bar fills into its next segment, that
+  seam flares white as if welded on.
 - **Colors**: green under 60%, amber from 60%, red from 85% or when your pace would
   run out before the reset. A red meter also vents small vapor puffs, like a tank
   before launch.
 - **Tanking**: a frost line marks each bar's fill level. While Claude works, propellant
   flows along the bars and the frost line flickers.
 - **CTX**: the context window, as a colored percent. Hover it for the token count.
-- **Telemetry dot**: lit when the reading is fresh, dim after 10 minutes, pulsing
-  while it refreshes.
+- **Telemetry dot**: a heartbeat while the reading is fresh, dim after 10 minutes,
+  pulsing while it refreshes.
+- **Brand plate**: a light glint crosses it every half minute or so.
+
+Calm mode keeps the band still.
 
 ### Brand name
 
