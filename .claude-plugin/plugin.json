@@ -1,0 +1,14 @@
+{
+  "name": "rocket-factory",
+  "version": "0.5.0",
+  "description": "Monotone rocket factory backdrop: a busy hangar where your session stacks a rocket ring by ring, then static-fires it. Also skins the Limits band in the same look.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "zustin-lu",
+    "url": "https://github.com/zustin-lu"
+  },
+  "repository": "https://github.com/zustin-lu/rocket-factory",
+  "homepage": "https://github.com/zustin-lu/rocket-factory",
+  "license": "MIT",
+  "keywords": ["theme", "backdrop", "rocket", "limits", "usage"]
+}
