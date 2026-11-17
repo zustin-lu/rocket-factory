@@ -59,6 +59,12 @@ loading. Each new ring's weld seam flares white and cools as it lands, and the s
 fire after the eighth ring rolls steam across the floor. Calm mode, and the system's
 reduced-motion setting, keep everything still.
 
+Around the rocket, a boom lift carries a welder up to the top ring and back, the crew
+access arm swings in and out, a tech paces the stand platform, and propellant flows
+down the umbilical while Claude works. Across the hall, trucks, a nose-cone transporter,
+a second bridge crane and the crew keep the floor busy. Everything on the floor is drawn
+back to front, so a truck on the far lane passes behind the rocket, never across it.
+
 ### Reading the usage band
 
 ```

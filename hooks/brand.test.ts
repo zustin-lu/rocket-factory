@@ -49,3 +49,41 @@ test('no CSS custom properties, which the app scrub strips with the whole <style
   }
   expect(shapes[0]).toContain('translateY(-54px)')
 })
+
+test('floor items draw far to near: the back-lane truck passes behind the rocket', async () => {
+  const svg = buildScene({ ...FACTORY, working: true }, { animate: true })
+  const at = (s: string) => {
+    const i = svg.indexOf(s)
+    expect(i).toBeGreaterThan(-1)
+    return i
+  }
+  const stand = at('<rect x="166" y="360"')
+  const rocket = at(`<rect x="175" y="${345 - 18}"`)
+  // back-lane truck and the beam porters stand behind the stand
+  expect(at('class="c2"')).toBeLessThan(stand)
+  expect(at('class="pr"')).toBeLessThan(stand)
+  // near-lane truck passes in front of the rocket
+  expect(at('class="c1"')).toBeGreaterThan(rocket)
+  // workers behind a truck are drawn before it
+  expect(at('class="w3"')).toBeLessThan(at('class="c2"'))
+  // and a worker nearer than the truck is drawn after it
+  expect(at('class="w2"')).toBeGreaterThan(at('class="c1"'))
+  // the floor cart's far-leg copy is behind the weld station, its near-leg copy in front
+  const station = at('<g transform="translate(560 382)">')
+  expect(at('class="agb"')).toBeLessThan(station)
+  expect(at('class="agf"')).toBeGreaterThan(station)
+  expect(buildScene(FACTORY, { animate: false })).not.toContain('class="agb"')
+
+  // the nose-cone transporter runs behind the stand; the near truck stays above the window's bottom strip
+  expect(at('class="sp"')).toBeLessThan(stand)
+  expect(svg).toMatch(/class="c1">[^]*?cy="400"/)
+  expect(svg).toContain('class="bk"')
+  expect(svg).toContain('class="fs2"')
+  // rocket-side crew: boom lift in front of the stand, arm, platform tech, umbilical flow while working
+  expect(at('class="bs"')).toBeGreaterThan(stand)
+  expect(svg).toContain('class="sa"')
+  expect(svg).toContain('class="pw"')
+  expect(svg).toContain('class="uf"')
+  expect(svg).toContain('45%,62%{transform:translateY(-29px)}') // 3 rings: the basket rides 29px up, level with the top ring
+  expect(buildScene(FACTORY, { animate: true })).not.toContain('class="uf"')
+})
