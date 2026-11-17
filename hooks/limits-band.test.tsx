@@ -127,7 +127,7 @@ test('a brand leads the band on desktop and terminal', async ($, on) => {
   await term.unmount()
 })
 
-test('a meter in the red gets a beacon; calm mode keeps it still', async ($, on) => {
+test('a meter in the red vents vapor', async ($, on) => {
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
@@ -137,14 +137,14 @@ test('a meter in the red gets a beacon; calm mode keeps it still', async ($, on)
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
   const ctx = svgs.find(s => s.props.alt.startsWith('Context 90%'))!
-  expect(ctx.props.source).toContain('class="bk"')
+  expect(ctx.props.source).toContain('class="vp"')
   await desk.unmount()
   const term = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await term.find({ type: 'Text', text: ' ●' })).toBeDefined()
   await term.unmount()
 })
 
-test('calm mode draws the beacon without blinking', async ($, on) => {
+test('calm mode draws the vent as a still puff', async ($, on) => {
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
@@ -158,7 +158,7 @@ test('calm mode draws the beacon without blinking', async ($, on) => {
   const svgs = (await desk.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
   const ctx = svgs.find(s => s.props.alt.startsWith('Context 90%'))!
   expect(ctx.props.source).toContain('<circle')
-  expect(ctx.props.source).not.toContain('class="bk"')
+  expect(ctx.props.source).not.toContain('class="vp')
   await desk.unmount()
 })
 
@@ -168,4 +168,29 @@ test('countdowns and telemetry', () => {
   expect(telemetryOf(true, 0)).toBe('refreshing')
   expect(telemetryOf(false, 60_000)).toBe('fresh')
   expect(telemetryOf(false, 11 * 60_000)).toBe('stale')
+})
+
+test('while Claude works, propellant flows along the bars; at rest only the frost line shows', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  seed(on, READING)
+  const bars = async (isWorking: boolean) => {
+    const ui = await $.ui.mount({ ...BAND, surface: 'desktop', props: { ...BAND.props, isWorking } })
+    const svgs = (await ui.findAll({ type: 'Svg' })) as unknown as { props: { alt: string; source: string } }[]
+    await ui.unmount()
+    return svgs.filter(s => s.props.alt.includes('limit')).map(s => s.props.source)
+  }
+  const working = await bars(true)
+  expect(working).toHaveLength(2)
+  for (const src of working) {
+    expect(src).toContain('class="pf"')
+    expect(src).toContain('class="fl"')
+  }
+  const idle = await bars(false)
+  for (const src of idle) {
+    expect(src).not.toContain('class="pf"')
+    expect(src).toContain('stroke-opacity=".8"')
+  }
 })

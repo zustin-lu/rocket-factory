@@ -21,3 +21,15 @@ test('the scene hangs a plate only when there is a brand', async () => {
   expect(branded).toContain('>R&amp;D &lt;LAB&gt;</text>')
   expect(branded).not.toContain('<lab>')
 })
+
+test('working: frost climbs the rocket and the top vents; stacking flares the new seam', async () => {
+  const working = buildScene({ ...FACTORY, working: true }, { animate: true })
+  expect(working).toContain('class="tk"')
+  expect(working).toContain('class="vw vw2"')
+  expect(buildScene({ ...FACTORY, working: true }, { animate: false })).not.toContain('class="tk"')
+  const stacked = buildScene({ ...FACTORY, last: 'stack' }, { animate: true })
+  expect(stacked).toContain('class="sm"')
+  const fired = buildScene({ ...FACTORY, rings: 8, last: 'stack' }, { animate: true })
+  expect(fired).toContain('class="stL"')
+  expect(buildScene({ ...FACTORY, last: 'stack' }, { animate: true })).not.toContain('class="stL"')
+})

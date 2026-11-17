@@ -100,6 +100,10 @@ const LOOP_STYLE = `
 .sc{transform-box:fill-box;transform-origin:0 50%;animation:sc 2.4s steps(4) infinite}@keyframes sc{0%{transform:scaleX(.3)}50%{transform:scaleX(1)}100%{transform:scaleX(.6)}}
 .sw{animation:sw 9s ease-in-out infinite}@keyframes sw{0%{transform:translateY(130px);opacity:0}30%,70%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
 .hud{animation:bc 1.4s steps(1) infinite}
+.tk{transform-box:fill-box;transform-origin:50% 100%;animation:tk 14s ease-out both}@keyframes tk{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.tl{animation:tl 14s ease-out both}@keyframes tl{from{transform:translateY(0)}to{transform:translateY(var(--rise))}}
+.vw{animation:vw 4.5s ease-out infinite}@keyframes vw{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.3}100%{transform:translate(22px,-34px) scale(2);opacity:0}}
+.vw2{animation-delay:1.5s}.vw3{animation-delay:3s}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 `
 
@@ -110,6 +114,10 @@ const stackStyle = (drop: number, fires: boolean) => `
 .cb{transform-box:fill-box;transform-origin:50% 0;animation:cb 5s ease-in-out both}@keyframes cb{0%,24%{transform:scaleY(1)}62%{transform:scaleY(${((10 + drop) / 10).toFixed(2)})}76%,100%{transform:scaleY(1)}}
 .nl{animation:nl 5s steps(1) both}@keyframes nl{0%,61%{opacity:0}62%,100%{opacity:1}}
 .sf{animation:${fires ? 'sf 2.8s ease-in-out 5.6s both' : 'none'}}@keyframes sf{0%{opacity:0}15%,85%{opacity:1}100%{opacity:0}}
+.sm{animation:sm 5s ease-out both}@keyframes sm{0%,61%{opacity:0}63%{opacity:1}100%{opacity:0}}
+.sk{animation:sk 5s steps(1) both}@keyframes sk{0%,61%{opacity:0}62%,74%{opacity:1}75%,100%{opacity:0}}
+.stL{animation:${fires ? 'stL 4.5s ease-out 5.8s both' : 'none'}}@keyframes stL{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(-110px,-14px) scale(2.4);opacity:0}}
+.stR{animation:${fires ? 'stR 4.5s ease-out 5.8s both' : 'none'}}@keyframes stR{0%{transform:translate(0,0) scale(.4);opacity:0}20%{opacity:.4}100%{transform:translate(110px,-14px) scale(2.4);opacity:0}}
 `
 
 export type SceneOptions = {
@@ -233,6 +241,18 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
         `<g class="dm" fill="#fff"><ellipse cx="188" cy="368" rx="4" ry="2.4"/><ellipse cx="188" cy="378" rx="3.4" ry="2"/><ellipse cx="188" cy="387" rx="2.8" ry="1.7"/></g>` +
         `<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="#fff" opacity=".04"/></g>`,
     )
+    // steam rolling out across the floor from the stand
+    o.push(
+      `<g fill="#e6e6e6">${[0, 1, 2]
+        .map(i => {
+          const y = 392 - i * 5
+          return (
+            `<ellipse class="stL" style="animation-delay:${(5.8 + i * 0.35).toFixed(2)}s;transform-box:fill-box;transform-origin:50% 50%" cx="182" cy="${y}" rx="12" ry="5" opacity="0"/>` +
+            `<ellipse class="stR" style="animation-delay:${(5.8 + i * 0.35).toFixed(2)}s;transform-box:fill-box;transform-origin:50% 50%" cx="194" cy="${y}" rx="12" ry="5" opacity="0"/>`
+          )
+        })
+        .join('')}</g>`,
+    )
   }
 
   // engine cluster and the engine-install cart
@@ -247,6 +267,25 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   }
   if (complete) {
     o.push(`<path${stacking ? ' class="nl"' : ''} d="M${RX} ${top}Q${RX + 2} ${top - 24} ${RX + RW / 2} ${top - 30}Q${RX + RW - 2} ${top - 24} ${RX + RW} ${top}Z" fill="${G.l6}"/>`)
+  }
+  // tanking while Claude works: frost climbs the stacked rings and the top vents
+  if (f.working && animate && rings > 0) {
+    const height = rings * RH
+    o.push(
+      `<rect class="tk" x="${RX}" y="${top}" width="${RW}" height="${height}" fill="#e9eef2" opacity=".2"/>` +
+        `<rect class="tl" style="--rise:-${height}px" x="${RX - 1}" y="${BASE - 1}" width="${RW + 2}" height="1.4" fill="#f4f4f4"/>` +
+        `<g fill="#e6e6e6">${['vw', 'vw vw2', 'vw vw3'].map(c => `<circle class="${c}" cx="${RX + RW - 3}" cy="${top + 4}" r="3" opacity="0"/>`).join('')}</g>`,
+    )
+  }
+  // the new ring's weld seam flares white as it lands, then cools to steel
+  if (stacking && rings > 1) {
+    const seam = BASE - (rings - 1) * RH
+    o.push(
+      `<rect class="sm" x="${RX - 1}" y="${seam - 1}" width="${RW + 2}" height="2" fill="#f4f4f4" opacity="0"/>` +
+        `<g class="sk" opacity="0"><g class="dm" fill="#fff">${[2, 9, 17, 24]
+          .map((dx, i) => `<circle cx="${RX + dx}" cy="${seam + (i % 2 ? 2 : -2)}" r="${i % 2 ? 0.8 : 1.2}"/>`)
+          .join('')}</g></g>`,
+    )
   }
   if (rings > 0 && animate) {
     o.push(`<g class="sw" opacity="0"><rect x="${RX + 6}" y="${top}" width="4" height="${Math.min(40, rings * RH)}" fill="#fff" opacity=".12"/></g>`)

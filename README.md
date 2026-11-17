@@ -54,6 +54,11 @@ The theme turns on when a session starts.
 
 The animated backdrop draws in the desktop and mobile apps. The colors are dark-mode only.
 
+While Claude works, frost climbs the stacked rings and the top vents, as in propellant
+loading. Each new ring's weld seam flares white and cools as it lands, and the static
+fire after the eighth ring rolls steam across the floor. Calm mode, and the system's
+reduced-motion setting, keep everything still.
+
 ### Reading the usage band
 
 ```
@@ -63,7 +68,10 @@ The animated backdrop draws in the desktop and mobile apps. The colors are dark-
 - **5HR / WK**: share of the window used. The bright tick on the bar marks how far
   into the window you are; `T-2h` counts down to the reset.
 - **Colors**: green under 60%, amber from 60%, red from 85% or when your pace would
-  run out before the reset. A red meter also gets a blinking beacon (still in calm mode).
+  run out before the reset. A red meter also vents small vapor puffs, like a tank
+  before launch.
+- **Tanking**: a frost line marks each bar's fill level. While Claude works, propellant
+  flows along the bars and the frost line flickers.
 - **CTX**: the context window, as a colored percent. Hover it for the token count.
 - **Telemetry dot**: lit when the reading is fresh, dim after 10 minutes, pulsing
   while it refreshes.

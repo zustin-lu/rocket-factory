@@ -104,7 +104,7 @@ export type Meter = {
   alt: string
 }
 
-/** A meter in the red: 85% or more, or on track to run out before the reset. Gets a beacon. */
+/** A meter in the red: 85% or more, or on track to run out before the reset. Vents vapor. */
 export const isWarning = (m: Meter) => m.level === 'error'
 
 const toMeter = (raw: LimitsLimit, at: number): Meter => {
@@ -159,6 +159,8 @@ const HEX: Record<string, string> = { success: '#8fb39a', warning: '#c9ad7f', er
 const GREY = '#929497'
 /** A telemetry dot whose reading has gone stale. */
 const DIM = '#55575a'
+/** Vented vapor and frost: off-white, like the hangar's venting. */
+const VAPOR = '#e6e6e6'
 /** Empty track: unpainted steel. */
 const STEEL = '#3a3b3e'
 /** Seams between the bar's rings: the hangar's background. */
@@ -185,8 +187,16 @@ const BETWEEN = 16
 /** A reading older than this dims the telemetry dot. */
 const STALE_MS = 10 * MINUTE
 
-/** Blink for the beacon, pulse for the telemetry dot; left out in calm mode. */
-const BLINK = '.bk{animation:bk 1.2s steps(1) infinite}@keyframes bk{50%{opacity:.25}}'
+/** Vapor puffs off a red meter, like a tank venting before launch; left out in calm mode. */
+const VENT =
+  '.vp{animation:vp 2.4s ease-out infinite;transform-box:fill-box;transform-origin:50% 50%}' +
+  '.vp2{animation-delay:.8s}.vp3{animation-delay:1.6s}' +
+  '@keyframes vp{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.85}100%{transform:translate(3px,-11px) scale(1.6);opacity:0}}'
+/** Propellant flowing along a bar's fill, and its frost line flickering, while Claude works. */
+const LOADING =
+  '.pf{animation:pf 2.6s linear infinite}@keyframes pf{0%{transform:translateX(0);opacity:0}15%,80%{opacity:1}100%{transform:translateX(var(--run));opacity:0}}' +
+  '.fl{animation:fl 1.1s steps(2) infinite}@keyframes fl{50%{opacity:.45}}'
+/** Pulse for the telemetry dot while it refreshes. */
 const PULSE = '.pl{animation:pl 1s ease-in-out infinite alternate}@keyframes pl{to{opacity:.3}}'
 const NO_MOTION = '@media (prefers-reduced-motion:reduce){*{animation:none!important}}'
 
@@ -225,24 +235,30 @@ const brandSvg = (name: string) => {
 }
 
 /**
- * The colored percent, a beacon when the meter is in the red, then the countdown.
- * `animate` false (calm mode) keeps the beacon still.
+ * The colored percent, a vent when the meter is in the red, then the countdown.
+ * `animate` false (calm mode) draws the vapor as a still puff.
  */
 const tailSvg = (m: Meter, pad: number, animate: boolean) => {
   const pct = m.pctText ?? fmtPct(m.pct)
   let body = run(INNER, 13, pct, paint(m), true)
   let x = INNER + pct.length * CH
-  const beacon = isWarning(m)
-  if (beacon) {
-    body += `<circle${animate ? ' class="bk"' : ''} cx="${(x + 6).toFixed(1)}" cy="${TEXT_H / 2}" r="2.6" fill="${HEX.error}"/>`
-    x += 10
+  const venting = isWarning(m)
+  if (venting) {
+    const cx = (x + 7).toFixed(1)
+    body += animate
+      ? ['vp', 'vp vp2', 'vp vp3']
+          .map(c => `<circle class="${c}" cx="${cx}" cy="13" r="2.2" fill="${VAPOR}" opacity="0"/>`)
+          .join('')
+      : `<circle cx="${cx}" cy="11" r="2.4" fill="${VAPOR}" opacity=".7"/>` +
+        `<circle cx="${(x + 9.5).toFixed(1)}" cy="7" r="1.8" fill="${VAPOR}" opacity=".45"/>`
+    x += 12
   }
   if (m.reset) {
     x += 10
     body += run(x, 13, m.reset, GREY)
     x += m.reset.length * CH
   }
-  return textSvg(body, x + pad, beacon && animate ? BLINK + NO_MOTION : '')
+  return textSvg(body, x + pad, venting && animate ? VENT + NO_MOTION : '')
 }
 
 export type Telemetry = 'fresh' | 'stale' | 'refreshing'
@@ -263,16 +279,34 @@ const telemetrySvg = (t: Telemetry, animate: boolean) => {
 }
 
 /** The bar's middle: steel track, role fill, ring seams and the "now" tick; stretches to its box. */
-const barSvg = (m: Meter) => {
+const barSvg = (m: Meter, isLoading: boolean) => {
   const by = BAR_CY - BAR_H / 2
   const fill = Math.min(1, Math.max(0, m.pct / 100)) * BAR_UNITS
   let body = `<rect x="0" y="${by}" width="${BAR_UNITS}" height="${BAR_H}" fill="${STEEL}"/>`
   if (fill > 0) body += `<rect x="0" y="${by}" width="${fill.toFixed(1)}" height="${BAR_H}" fill="${paint(m)}"/>`
+  // Frost haze just under the fill level, as on a steel tank being loaded.
+  if (fill > 0 && fill < BAR_UNITS) {
+    const haze = Math.min(40, fill)
+    body += `<rect x="${(fill - haze).toFixed(1)}" y="${by}" width="${haze.toFixed(1)}" height="${BAR_H}" fill="${VAPOR}" opacity=".16"/>`
+  }
+  // Propellant flowing along the fill while Claude works.
+  const flowW = Math.min(140, fill * 0.6)
+  if (isLoading && fill >= 60) {
+    body +=
+      `<rect class="pf" style="--run:${(fill - flowW).toFixed(1)}px" x="0" y="${by}" width="${flowW.toFixed(1)}" ` +
+      `height="${BAR_H}" fill="${VAPOR}" opacity="0"/>`
+  }
   for (let i = 1; i < BAR_RINGS; i++) {
     const sx = ((i / BAR_RINGS) * BAR_UNITS).toFixed(1)
     body +=
       `<line x1="${sx}" y1="${by}" x2="${sx}" y2="${by + BAR_H}" stroke="${SEAM}" ` +
       `stroke-width="1.5" vector-effect="non-scaling-stroke"/>`
+  }
+  // The frost line at the fill level; it flickers while loading.
+  if (fill > 0 && fill < BAR_UNITS) {
+    body +=
+      `<line${isLoading ? ' class="fl"' : ''} x1="${fill.toFixed(1)}" y1="${by - 1}" x2="${fill.toFixed(1)}" y2="${by + BAR_H + 1}" ` +
+      `stroke="${VAPOR}" stroke-opacity=".8" stroke-width="2" vector-effect="non-scaling-stroke"/>`
   }
   if (m.elapsed !== undefined) {
     const tx = Math.min(BAR_UNITS, Math.max(0, m.elapsed * BAR_UNITS)).toFixed(1)
@@ -282,7 +316,8 @@ const barSvg = (m: Meter) => {
   }
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${BAR_UNITS}" height="${TEXT_H}" ` +
-    `viewBox="0 0 ${BAR_UNITS} ${TEXT_H}" preserveAspectRatio="none">${body}</svg>`
+    `viewBox="0 0 ${BAR_UNITS} ${TEXT_H}" preserveAspectRatio="none">` +
+    `${isLoading ? `<style>${LOADING}${NO_MOTION}</style>` : ''}${body}</svg>`
   )
 }
 
@@ -349,8 +384,9 @@ export const registerLimitsBand = (on: On) => {
       telemetry === 'refreshing'
         ? 'Usage: refreshing'
         : `Usage read ${age < MINUTE ? 'just now' : `${fmtSpan(age)} ago`}${telemetry === 'stale' ? ' (stale)' : ''}`
-    // Calm mode keeps the beacon and the telemetry dot still.
+    // Calm mode keeps the vents, the loading flow and the telemetry dot still.
     const animate = lookNow !== 'calm'
+    const isLoading = animate && e.props.isWorking
 
     if (e.surface !== 'terminal') {
       const { Box, Svg } = $.ui.resolve(e)
@@ -362,14 +398,14 @@ export const registerLimitsBand = (on: On) => {
           {meters.flatMap(m => {
             const label = labelSvg(m)
             const tail = tailSvg(m, BETWEEN, animate)
-            const tailAlt = m.isNumberOnly ? m.alt : `${m.pctText ?? fmtPct(m.pct)}${isWarning(m) ? ', warning' : ''}`
+            const tailAlt = m.isNumberOnly ? m.alt : `${m.pctText ?? fmtPct(m.pct)}${isWarning(m) ? ', venting' : ''}`
             return [
               <Svg source={label.source} width={label.width} height={label.height} alt={m.label} />,
               m.isNumberOnly ? null : (
                 <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
                   <Svg source={capSvg(m, 'left')} width={CAP_W} height={TEXT_H} alt="bar start" />
                   <Box flexDirection="row" alignItems="center" flexGrow={1} width={0} minWidth={0}>
-                    <Svg source={barSvg(m)} height={TEXT_H} alt={m.alt} />
+                    <Svg source={barSvg(m, isLoading)} height={TEXT_H} alt={m.alt} />
                   </Box>
                   <Svg source={capSvg(m, 'right')} width={NOSE_W} height={TEXT_H} alt="bar end" />
                 </Box>
