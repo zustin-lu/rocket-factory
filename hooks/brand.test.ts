@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
 import { BRAND_MAX, cleanBrand, storedBrand } from './brand'
-import { buildScene } from './scene'
+import { buildScene, nextStage, STAGES } from './scene'
 
-const FACTORY = { rings: 3, build: 1, welds: 0, working: false, last: 'idle' } as const
+const FACTORY = { rings: 3, stage: 'stack', build: 1, welds: 0, working: false, last: 'idle' } as const
 
 test('cleanBrand tidies and cuts the name', async () => {
   expect(cleanBrand('  Acme   Corp \n')).toEqual({ name: 'Acme Corp', isCut: false })
@@ -22,22 +22,30 @@ test('the scene hangs a plate only when there is a brand', async () => {
   expect(branded).not.toContain('<lab>')
 })
 
-test('working: frost climbs the rocket and the top vents; stacking flares the new seam', async () => {
-  const working = buildScene({ ...FACTORY, working: true }, { animate: true })
-  expect(working).toContain('class="tk"')
-  expect(working).toContain('class="tv2"')
-  expect(buildScene({ ...FACTORY, working: true }, { animate: false })).not.toContain('class="tk"')
+test('cryo: two tanks frost and vent; stacking flares the new seam and a crawler inspects it', async () => {
+  const cryo = buildScene({ ...FACTORY, rings: 8, stage: 'cryo', last: 'stage' }, { animate: true })
+  expect(cryo).toContain('class="tkL"')
+  expect(cryo).toContain('class="tkM"')
+  expect(cryo.match(/class="tv2"/g)?.length).toBe(2) // vents at the top and at the shared dome
+  expect(cryo).toContain('class="hcL"')
+  expect(cryo).toContain('class="qi"')
+  // stacking has no frost any more: tanks only get cold in the proof test
+  expect(buildScene({ ...FACTORY, working: true }, { animate: true })).not.toContain('class="tv2"')
+  expect(buildScene({ ...FACTORY, rings: 4, last: 'stack' }, { animate: true })).toContain('class="sx"')
   const stacked = buildScene({ ...FACTORY, last: 'stack' }, { animate: true })
   expect(stacked).toContain('class="sm"')
-  const fired = buildScene({ ...FACTORY, rings: 8, last: 'stack' }, { animate: true })
+  const fired = buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'stage' }, { animate: true })
   expect(fired).toContain('class="stL0"')
+  expect(buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'idle' }, { animate: true })).not.toContain('class="stL0"')
   expect(buildScene({ ...FACTORY, last: 'stack' }, { animate: true })).not.toContain('class="stL0"')
 })
 
 test('no CSS custom properties, which the app scrub strips with the whole <style>', async () => {
   const shapes = [
     buildScene({ ...FACTORY, working: true }, { animate: true, brand: 'CyberSkill' }),
-    buildScene({ ...FACTORY, rings: 8, last: 'stack' }, { animate: true, brand: 'CyberSkill' }),
+    buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'stage' }, { animate: true, brand: 'CyberSkill' }),
+    buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage' }, { animate: true, brand: 'CyberSkill' }),
+    buildScene({ ...FACTORY, rings: 5, last: 'stack' }, { animate: true, brand: 'CyberSkill' }),
   ]
   for (const svg of shapes) {
     expect(svg).not.toContain('var(')
@@ -47,7 +55,6 @@ test('no CSS custom properties, which the app scrub strips with the whole <style
     expect(svg).not.toContain('style="animation-delay')
     expect(svg.length).toBeLessThan(131_072)
   }
-  expect(shapes[0]).toContain('translateY(-54px)')
 })
 
 test('floor items draw far to near: the back-lane truck passes behind the rocket', async () => {
@@ -81,9 +88,103 @@ test('floor items draw far to near: the back-lane truck passes behind the rocket
   expect(svg).toContain('class="fs2"')
   // rocket-side crew: boom lift in front of the stand, arm, platform tech, umbilical flow while working
   expect(at('class="bs"')).toBeGreaterThan(stand)
-  expect(svg).toContain('class="sa"')
+  expect(svg).toContain('<rect x="146" y="258"') // tower-arm carriage parked down the tower
   expect(svg).toContain('class="pw"')
-  expect(svg).toContain('class="uf"')
+  expect(buildScene({ ...FACTORY, rings: 8, stage: 'cryo' }, { animate: true })).toContain('class="uf"')
   expect(svg).toContain('45%,62%{transform:translateY(-29px)}') // 3 rings: the basket rides 29px up, level with the top ring
   expect(buildScene(FACTORY, { animate: true })).not.toContain('class="uf"')
+})
+
+test('stages run stack, cryo, engines, fire, catch, and the catch test is the last', async () => {
+  expect(STAGES).toEqual(['stack', 'cryo', 'engines', 'fire', 'catch'])
+  expect(nextStage('stack')).toBe('cryo')
+  expect(nextStage('fire')).toBe('catch')
+  expect(nextStage('catch')).toBe('catch')
+})
+
+test('the stack grows from below: the crane lifts the stack and a new ring rolls in under it', async () => {
+  const svg = buildScene({ ...FACTORY, rings: 4, last: 'stack' }, { animate: true })
+  expect(svg).toContain('class="os"')
+  expect(svg).toContain('class="nr"')
+  expect(svg).toContain('class="cr"')
+  // the old stack starts one ring low, on the stand, and ends where it is drawn
+  expect(svg).toContain('0%,28%{transform:translateY(18px)}')
+  // the first ring only rolls in; no crane lift
+  const first = buildScene({ ...FACTORY, rings: 1, last: 'stack' }, { animate: true })
+  expect(first).toContain('class="nr"')
+  expect(first).not.toContain('class="os"')
+})
+
+test('V3 look: hot-staging ring, grid fins, section seams, engines only from the engine stage', async () => {
+  const stacked = buildScene({ ...FACTORY, rings: 8, stage: 'stack' }, { animate: false })
+  expect(stacked).toContain(`y="${345 - 8 * 18 - 6}" width="26" height="6"`) // hot-staging ring above the top ring
+  expect(stacked).not.toContain('class="ec"')
+  const withEngines = buildScene({ ...FACTORY, rings: 8, stage: 'engines' }, { animate: true })
+  expect(withEngines).toContain('class="ec"')
+  const cryo = buildScene({ ...FACTORY, rings: 8, stage: 'cryo' }, { animate: true })
+  expect(cryo).toContain('class="rm"')
+  expect(cryo).toContain('CRYO PROOF')
+})
+
+test('catch test: the tower arms close under the fins and lift the booster', async () => {
+  const svg = buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage' }, { animate: true })
+  expect(svg).toContain('class="ch"')
+  expect(svg).toContain('class="ac"')
+  expect(svg).toContain('class="bl"')
+  // parked arms are swung open; closed ones have no open transform
+  expect(buildScene(FACTORY, { animate: false })).toContain('scale(0.18 1)')
+  expect(buildScene({ ...FACTORY, rings: 8, stage: 'catch' }, { animate: false })).not.toContain('scale(0.18 1)')
+})
+
+test('hex tiles: one pattern, used by the parked ships and the transported nose section', async () => {
+  const svg = buildScene(FACTORY, { animate: true })
+  expect(svg.match(/<pattern id="hx"/g)?.length).toBe(1)
+  expect(svg.match(/url\(#hx\)/g)?.length).toBe(3)
+})
+
+test('each stage runs only its own activities', async () => {
+  const stack = buildScene({ ...FACTORY, working: true }, { animate: true })
+  const fire = buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'stage' }, { animate: true })
+  // crews and the boom lift work while stacking; the pad is cleared for the static fire
+  expect(stack).toContain('class="pw"')
+  expect(stack).toContain('class="bs"')
+  expect(fire).not.toContain('class="pw"')
+  expect(fire).not.toContain('class="bs"')
+  expect(fire).not.toContain('class="pr"')
+  // drones inspect only while the pad is cleared; the ring line turns only while stacking
+  expect(stack).not.toContain('class="d1"')
+  expect(fire).toContain('class="d1"')
+  expect(stack).toContain('class="co"')
+  expect(fire).not.toContain('class="co"')
+  // venting only while the tanks are cold
+  expect(stack).not.toContain('class="vt"')
+  expect(fire).toContain('class="vt"')
+  // the static fire counts down, sprays the deluge, then fires
+  expect(fire).toContain('>IGNITION</text>')
+  expect(fire).toContain('class="dl"')
+  // the catch test pulls the umbilical back and opens the clamps
+  const caught = buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage' }, { animate: true })
+  expect(caught).toContain('class="qo"')
+  expect(caught).toContain('class="hoR"')
+})
+
+test('the hall runs on a skeleton crew between turns', async () => {
+  const idle = buildScene(FACTORY, { animate: true })
+  const busy = buildScene({ ...FACTORY, working: true }, { animate: true })
+  // one truck, the bridge crane and the rocket-side crew keep moving between turns
+  expect(idle).toContain('class="c2"')
+  expect(idle).toContain('class="bk"')
+  expect(idle).toContain('class="pw"')
+  // the rest of the hall, the sparks and the test cell wait for Claude to work
+  for (const cls of ['c1', 'sp', 'agf', 'ln', 'r1', 'ws', 'fs1', 'cl', 'w2', 'tc']) {
+    expect(idle).not.toContain(`class="${cls}"`)
+    expect(busy).toContain(`class="${cls}"`)
+  }
+  // movers wholly under the chat veil never move
+  expect(busy).not.toContain('class="fk"')
+  expect(busy).not.toContain('class="gt"')
+  // flickers inside a one-shot stop with it
+  const fire = buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'stage' }, { animate: true })
+  expect(fire).toContain('class="df"')
+  expect(fire).toContain('.df{animation:dm .3s steps(2) 24}')
 })

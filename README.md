@@ -1,8 +1,10 @@
 # Rocket Factory
 
 A monotone rocket factory theme for Claude Code. The backdrop is a busy hangar:
-each turn you run stacks one more ring on the booster, tool calls count as welds,
-and when the eighth ring is on, the rocket static-fires and a new build starts.
+each turn you run stacks one more ring on the booster and tool calls count as welds.
+Once the eighth ring is on, each further turn moves the booster to its next stage:
+cold proof test, engine install, static fire, then a catch test, after which a new
+build starts.
 
 It also reskins the [Limits](https://github.com/Ryan-LT/claude-mods/tree/main/limits)
 usage band (5-hour, weekly and context-window meters) in the same graphite-and-steel look.
@@ -54,16 +56,26 @@ The theme turns on when a session starts.
 
 The animated backdrop draws in the desktop and mobile apps. The colors are dark-mode only.
 
-While Claude works, frost climbs the stacked rings and the top vents, as in propellant
-loading. Each new ring's weld seam flares white and cools as it lands, and the static
-fire after the eighth ring rolls steam across the floor. Calm mode, and the system's
-reduced-motion setting, keep everything still.
+The booster has a vented hot-staging ring, grid fins and section seams. A ship with
+black hex tiles stands in a work cell, and the readout above the tower shows the
+stage, the build and the weld count, with one pip per stage.
 
-Around the rocket, a boom lift carries a welder up to the top ring and back, the crew
-access arm swings in and out, a tech paces the stand platform, and propellant flows
-down the umbilical while Claude works. Across the hall, trucks, a nose-cone transporter,
-a second bridge crane and the crew keep the floor busy. Everything on the floor is drawn
-back to front, so a truck on the far lane passes behind the rocket, never across it.
+Each stage runs only its own work, as in a real build:
+
+| Stage | What happens at the rocket |
+| --- | --- |
+| Stacking | The crane lifts the stack, a new ring rolls in underneath and its seam flares white, then a crawler inspects the seam. A boom lift, a tower lift and the crew work around the stand. |
+| Cryo proof | The pad is cleared and drones inspect. The clamps close, the umbilical swings in, the oxygen tank frosts and then the methane tank, and both vent. |
+| Engine install | The crew comes back and a cart lifts engines into the aft. |
+| Static fire | The readout counts down to ignition, the water deluge sprays, the engines fire and steam rolls across the floor. |
+| Catch test | The umbilical pulls back, the clamps open, and the tower arms close under the grid fins and lift the booster. |
+
+Between turns the hall runs on a skeleton crew: beacons, one truck and the bridge
+crane. Trucks, the nose-cone transporter, the floor cart, the test cell and the sparks
+run only while Claude works, which keeps the backdrop light on a laptop. Everything on
+the floor is drawn back to front, so a truck on the far lane passes behind the rocket,
+never across it. Calm mode, and the system's reduced-motion setting, keep everything
+still.
 
 ### Reading the usage band
 

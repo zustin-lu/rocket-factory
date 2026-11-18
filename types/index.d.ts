@@ -1,15 +1,23 @@
+/**
+ * Where the booster is in its build: rings are stacked first, then, one turn each,
+ * a cold proof test, engine install, a static fire and a catch test on the tower arms.
+ */
+export type Stage = 'stack' | 'cryo' | 'engines' | 'fire' | 'catch'
+
 /** What the factory has built so far in this session. */
 export type Factory = {
   /** Rings stacked on the booster, 0 to RINGS. */
   rings: number
-  /** Which build this is; goes up after each static fire. */
+  /** The build stage; `stack` until all rings are on. */
+  stage: Stage
+  /** Which build this is; goes up after each catch test. */
   build: number
   /** Tool calls made while building this rocket. */
   welds: number
   /** True while Claude is working on a turn: the welders are on. */
   working: boolean
   /** What happened last, so a redraw plays the right one-shot animation. */
-  last: 'idle' | 'start' | 'stack'
+  last: 'idle' | 'start' | 'stack' | 'stage'
 }
 
 declare module 'claude-code' {

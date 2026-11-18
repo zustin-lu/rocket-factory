@@ -6,7 +6,7 @@ import { BRAND_MAX, BRAND_STORE_KEY, cleanBrand, storedBrand } from './brand'
 import { registerLimitsBand } from './limits-band'
 import { checkLimits, installSteps, shortNotice } from './limits-gate'
 import { makeColors } from './make-colors.js'
-import { buildScene, RINGS } from './scene'
+import { buildScene, nextStage, RINGS, STAGE_LABEL } from './scene'
 
 // Graphite and steel: quiet grays, with roles kept muted so code still reads.
 const { theme, problems } = makeColors({
@@ -47,11 +47,11 @@ type Mode = keyof typeof LOOKS
 // The look in force; the limits band follows it. session.start applies `on`.
 const look = atom({ plugin: 'rocket-factory', key: 'look' } as const, 'on' as Look)
 
-const INITIAL: Factory = { rings: 3, build: 1, welds: 0, working: false, last: 'idle' }
+const INITIAL: Factory = { rings: 3, stage: 'stack', build: 1, welds: 0, working: false, last: 'idle' }
 
 // Change the tag when Factory's fields change, so an older stored value reads as INITIAL.
 const factory = atom({ plugin: 'rocket-factory', key: 'factory' } as const, INITIAL, {
-  shape: 'factory-1',
+  shape: 'factory-2',
 })
 
 // The brand on the plate above the rocket and at the start of the band; '' is none.
@@ -146,13 +146,14 @@ export const register: Register = on => {
     return { text: arg === 'calm' ? 'Rocket factory on, without motion.' : 'Rocket factory on.' }
   })
 
-  // A turn starts: the welders switch on. A finished rocket clears the stand first.
+  // A turn starts: the welders switch on. A booster that passed its catch test leaves
+  // the stand first, and a new build starts.
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined) {
       pendingWelds = 0
       await update($, factory, (f): Factory =>
-        f.rings >= RINGS
-          ? { rings: 0, build: f.build + 1, welds: 0, working: true, last: 'start' }
+        f.stage === 'catch'
+          ? { rings: 0, stage: 'stack', build: f.build + 1, welds: 0, working: true, last: 'start' }
           : { ...f, working: true, last: 'start' },
       )
     }
@@ -167,19 +168,21 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // A turn ends: the crane stacks one ring. The eighth ring triggers a static fire.
+  // A turn ends: the crane stacks one ring. Once all rings are on, each turn moves the
+  // booster one stage on: cold proof test, engine install, static fire, catch test.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined) {
       const welds = pendingWelds
       pendingWelds = 0
-      await update($, factory, (f): Factory => ({
-        ...f,
-        rings: Math.min(RINGS, f.rings + 1),
-        welds: f.welds + welds,
-        working: false,
-        last: 'stack',
-      }))
+      await update($, factory, (f): Factory => {
+        const done = { ...f, welds: f.welds + welds, working: false }
+        if (f.stage === 'stack' && f.rings < RINGS) {
+          return { ...done, rings: f.rings + 1, last: 'stack' }
+        }
+        const after = nextStage(f.stage)
+        return after === f.stage ? { ...done, last: 'idle' } : { ...done, stage: after, last: 'stage' }
+      })
     }
 
     return result
@@ -200,7 +203,7 @@ export const register: Register = on => {
     return (
       <Svg
         source={buildScene(f, { animate: !still, brand: name })}
-        alt={`Monotone rocket factory${name ? `, branded ${name}` : ''}: build ${f.build}, ring ${Math.min(f.rings, RINGS)} of ${RINGS} stacked; crews, carts and robots at work`}
+        alt={`Monotone rocket factory${name ? `, branded ${name}` : ''}: build ${f.build}, ring ${Math.min(f.rings, RINGS)} of ${RINGS} stacked, stage ${STAGE_LABEL[f.stage] ?? 'stacking'}; crews, carts and robots at work`}
         isInteractive
       />
     )
