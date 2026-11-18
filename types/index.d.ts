@@ -18,6 +18,10 @@ export type Factory = {
   working: boolean
   /** What happened last, so a redraw plays the right one-shot animation. */
   last: 'idle' | 'start' | 'stack' | 'stage'
+  /** Tool calls that failed while building this rocket: rejected welds. Absent in older saves. */
+  rejects?: number
+  /** Rejected welds in the turn that just ended; the redraw after it grinds one out and re-welds it. */
+  flawed?: number
 }
 
 declare module 'claude-code' {

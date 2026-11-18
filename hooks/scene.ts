@@ -81,13 +81,76 @@ const person = (x: number, y: number, s: number, c: string) =>
 const bell = (x: number, y: number, s: number, c: string) =>
   `<path d="M${x - 2 * s} ${y}L${x + 2 * s} ${y}L${x + 3.2 * s} ${y + 6 * s}L${x - 3.2 * s} ${y + 6 * s}Z" fill="${c}"/>`
 
-const ring = (y: number, extra = '') =>
-  `<g${extra}><rect x="${RX}" y="${y}" width="${RW}" height="${RH}" fill="${G.l3}"/>` +
-  `<rect x="${RX + 5}" y="${y}" width="6" height="${RH}" fill="${G.l5}"/>` +
+/**
+ * A small seeded random source: each build looks its own way (ring tones, chalk marks,
+ * missing tiles), and the same build always looks the same on every redraw.
+ */
+const seeded = (seed: number) => {
+  let s = Math.imul(seed + 1, 2654435761) >>> 0 || 1
+  return () => {
+    s ^= s << 13
+    s >>>= 0
+    s ^= s >>> 17
+    s ^= s << 5
+    s >>>= 0
+    return s / 4294967296
+  }
+}
+
+// Steel rings out of the roller never match exactly: three tones, and the light stripe shifts a little.
+const RING_TONES = [G.l3, '#86888c', '#919397']
+
+/** A chalk mark an inspector left on a ring: a tick, a cross or a circle. */
+const chalk = (x: number, y: number, kind: number) =>
+  `<path d="${kind === 0 ? `M${x} ${y + 1}l1.4 2 3-4.5` : kind === 1 ? `M${x} ${y - 2}l3.4 4M${x + 3.4} ${y - 2}l-3.4 4` : `M${x + 1.8} ${y - 2}a2 2 0 1 0 .01 0`}" fill="none" stroke="#e4e4e4" stroke-width=".6" opacity=".55"/>`
+
+/** One steel ring; `v` picks its tone, its stripe and whether it carries a chalk mark. */
+const ring = (y: number, v = 0) =>
+  `<g><rect x="${RX}" y="${y}" width="${RW}" height="${RH}" fill="${RING_TONES[v % 3]}"/>` +
+  `<rect x="${RX + 4 + ((v >> 2) % 3)}" y="${y}" width="6" height="${RH}" fill="${G.l5}"/>` +
   `<rect x="${RX + 19}" y="${y}" width="7" height="${RH}" fill="${G.l1}"/>` +
-  `<rect x="${RX}" y="${y}" width="${RW}" height="1" fill="${G.m5}"/></g>`
+  `<rect x="${RX}" y="${y}" width="${RW}" height="1" fill="${G.m5}"/>` +
+  (v % 4 === 1 ? chalk(RX + 13 + (v % 5), y + RH / 2, v % 3) : '') +
+  `</g>`
 
 const times = (n: number, f: (i: number) => string) => Array.from({ length: n }, (_, i) => f(i)).join('')
+
+// Ship stacked on the booster after the catch test, about two thirds of its height
+const SHIP_H = 100
+
+/** The sky through the tall bay door behind the rocket, by the local hour: muted, as seen from inside a dark hall. */
+const skyAt = (hour: number) =>
+  hour < 5 || hour >= 21
+    ? { top: '#0a0c10', mid: '#0e1117', low: '#161b23', stars: true, lights: true }
+    : hour < 7
+      ? { top: '#151923', mid: '#2a2830', low: '#5a463b', stars: false, lights: true }
+      : hour < 17
+        ? { top: '#2c333c', mid: '#3a4149', low: '#4d545c', stars: false, lights: false }
+        : hour < 19
+          ? { top: '#1c1f28', mid: '#3a3133', low: '#6a4f3c', stars: false, lights: true }
+          : { top: '#10131b', mid: '#1a1d29', low: '#2a2a38', stars: true, lights: true }
+
+/** The open bay door: sky, far ground, a distant launch tower with a vehicle beside it, pad lights after dark. */
+const skyDoor = (hour: number, rnd: () => number) => {
+  const s = skyAt(hour)
+  const stars = times(7, () => {
+    const x = 158 + rnd() * 34
+    const y = 62 + rnd() * 130
+    const a = 0.35 + rnd() * 0.45
+    return s.stars ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width=".8" height=".8" fill="#d8dade" opacity="${a.toFixed(2)}"/>` : ''
+  })
+  return (
+    `<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.top}"/>` +
+    `<stop offset=".7" stop-color="${s.mid}"/><stop offset="1" stop-color="${s.low}"/></linearGradient></defs>` +
+    `<rect x="156" y="58" width="38" height="198" fill="url(#sky)"/>${stars}` +
+    `<path d="M156 244L168 240L182 242L194 239V256H156Z" fill="#0e0f11"/>` +
+    `<rect x="183" y="212" width="2" height="30" fill="#0b0c0d"/><rect x="186.5" y="219" width="2.6" height="23" fill="#0b0c0d"/>` +
+    (s.lights
+      ? `<ellipse cx="186" cy="241" rx="9" ry="2.6" fill="#f0e6c8" opacity=".12"/><rect x="183.5" y="210.5" width="1" height="1" fill="#f0e6c8"/>`
+      : '') +
+    `<rect x="156" y="58" width="38" height="198" fill="none" stroke="#1e1f21" stroke-width="2"/>`
+  )
+}
 
 // Heat-shield tiles: a flat-topped hex pattern, dark tiles with light gaps.
 const HEX_R = 1.7
@@ -110,10 +173,15 @@ const HEX_DEFS =
   `<rect width="${(HEX_R * 3).toFixed(2)}" height="${HEX_H.toFixed(3)}" fill="#3a3c3f"/>` +
   `<path d="${hex(HEX_R, HEX_H / 2)}${hex(HEX_R * 2.5, 0)}${hex(HEX_R * 2.5, HEX_H)}" fill="#151617"/></pattern></defs>`
 
+/** Light gaps where heat-shield tiles are still missing, at the given heights (0 to 1 down the tiled side). */
+const tileGaps = (x: number, top: number, h: number, at: readonly number[]) =>
+  at.map((t, i) => `<rect x="${(x + (i % 3) * 1.8).toFixed(1)}" y="${(top + t * h).toFixed(1)}" width="1.8" height="1.6" fill="${G.m4}"/>`).join('')
+
 /** A ship standing in a work cell: steel on one side, black hex tiles on the windward side. */
-const tiledShip = (x: number, top: number, bottom: number, steel: string) =>
+const tiledShip = (x: number, top: number, bottom: number, steel: string, gaps: readonly number[] = []) =>
   `<path d="M${x} ${top + 26}Q${x} ${top + 8} ${x + 7} ${top}Q${x + 14} ${top + 8} ${x + 14} ${top + 26}V${bottom}H${x}Z" fill="${steel}"/>` +
   `<path d="M${x + 7} ${top}Q${x + 14} ${top + 8} ${x + 14} ${top + 26}V${bottom}H${x + 7}Z" fill="url(#hx)"/>` +
+  tileGaps(x + 8.5, top + 30, bottom - top - 40, gaps) +
   `<path d="M${x - 3} ${top + 22}L${x} ${top + 18}V${top + 34}L${x - 3} ${top + 34}Z" fill="${steel}"/>` +
   `<path d="M${x - 4} ${bottom - 30}L${x} ${bottom - 36}V${bottom - 8}L${x - 4} ${bottom - 8}Z" fill="${steel}"/>`
 
@@ -133,6 +201,27 @@ const sectionSeams = (top: number, upTo: number) => {
     out += `<rect x="${RX}" y="${y - 0.5}" width="${RW}" height="1.6" fill="${G.d5}"/>`
   }
   return out
+}
+
+/**
+ * The ship stacked on the booster: a steel nose and barrel, black hex tiles on its windward
+ * half with a few still missing, forward and aft flaps.
+ */
+const stackShip = (bottom: number, gaps: readonly number[]) => {
+  const t = bottom - SHIP_H
+  const m = RX + RW / 2
+  const r = RX + RW
+  return (
+    `<path d="M${RX} ${bottom}V${t + 34}Q${RX} ${t + 10} ${m} ${t}Q${r} ${t + 10} ${r} ${t + 34}V${bottom}Z" fill="${G.l3}"/>` +
+    `<rect x="${RX + 5}" y="${t + 30}" width="6" height="${SHIP_H - 30}" fill="${G.l5}"/>` +
+    `<path d="M${m} ${t}Q${r} ${t + 10} ${r} ${t + 34}V${bottom}H${m}Z" fill="url(#hx)"/>` +
+    tileGaps(m + 2, t + 40, SHIP_H - 50, gaps) +
+    `<path d="M${RX - 5} ${t + 34}L${RX} ${t + 28}V${t + 46}L${RX - 5} ${t + 46}Z" fill="${G.m5}"/>` +
+    `<path d="M${r + 5} ${t + 34}L${r} ${t + 28}V${t + 46}L${r + 5} ${t + 46}Z" fill="${G.d4}"/>` +
+    `<path d="M${RX - 6} ${bottom - 34}L${RX} ${bottom - 42}V${bottom - 6}L${RX - 6} ${bottom - 6}Z" fill="${G.m5}"/>` +
+    `<path d="M${r + 6} ${bottom - 34}L${r} ${bottom - 42}V${bottom - 6}L${r + 6} ${bottom - 6}Z" fill="${G.d4}"/>` +
+    `<rect x="${RX}" y="${bottom - 1}" width="${RW}" height="1" fill="${G.d5}"/>`
+  )
 }
 
 /** Bare engines under the aft: a back row in shade and a front row in light. */
@@ -191,6 +280,7 @@ const LOOP_STYLE = `
 .sw{animation:sw 9s ease-in-out infinite}@keyframes sw{0%{transform:translateY(130px);opacity:0}30%,70%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
 .hud{animation:bc 1.4s steps(1) infinite}
 .tk{transform-box:fill-box;transform-origin:50% 100%;animation:tk 14s ease-out both}@keyframes tk{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.hl{animation:hl 12s ease-in-out infinite alternate}@keyframes hl{to{transform:translateX(21px)}}
 .tv1{animation:tv 4.5s ease-out infinite}.tv2{animation:tv 4.5s ease-out infinite 1.5s}.tv3{animation:tv 4.5s ease-out infinite 3s}
 @keyframes tv{0%{transform:translate(0,0) scale(.5);opacity:0}15%{opacity:.3}100%{transform:translate(22px,-34px) scale(2);opacity:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
@@ -271,7 +361,37 @@ const catchStyle = (rise: number) =>
   `.ac{transform-box:fill-box;transform-origin:0 50%;animation:ac 7s ease-in-out both}@keyframes ac{0%,35%{transform:scaleX(${ARM_OPEN})}50%,100%{transform:scaleX(1)}}` +
   `.bl{animation:bl 7s ease-in-out both}@keyframes bl{0%,55%{transform:translateY(0)}70%,85%{transform:translateY(-14px)}100%{transform:translateY(0)}}`
 
+/**
+ * One-shot when the booster moves to a new stage: the readout and its pip blink, the tower
+ * beacon turns three times, and the crew walks in (engine install) or off the pad (the rest).
+ */
+const HANDOVER_STYLE =
+  `.hf{animation:hf 2.4s steps(1) both}@keyframes hf{0%{opacity:1}10%{opacity:.2}20%{opacity:1}30%{opacity:.2}40%{opacity:1}50%{opacity:.2}60%,100%{opacity:1}}` +
+  `.rb{transform-box:fill-box;transform-origin:0 50%;animation:rb .9s linear 3 both}@keyframes rb{0%{transform:scaleX(1);opacity:.4}25%{transform:scaleX(.05);opacity:.1}50%{transform:scaleX(-1);opacity:.15}75%{transform:scaleX(.05);opacity:.1}100%{transform:scaleX(1);opacity:0}}` +
+  `.wi{animation:wi 4s ease-out both}@keyframes wi{from{transform:translateX(-60px)}to{transform:translateX(0)}}` +
+  `.wo{animation:wo 5s ease-in both}@keyframes wo{0%{transform:translateX(0);opacity:1}80%{opacity:1}100%{transform:translateX(70px);opacity:0}}`
+
+/**
+ * One-shot after a turn in which a tool call failed: a rejected weld. The inspector's lamp
+ * blinks red, the seam is ground out in a spray of sparks, then welded again.
+ */
+const flawStyle = (delay: number) =>
+  `.rj{animation:rj 4s steps(1) ${delay}s both}@keyframes rj{0%{opacity:0}2%{opacity:1}12%{opacity:.15}22%{opacity:1}32%{opacity:.15}42%{opacity:1}80%,100%{opacity:0}}` +
+  `.rg{animation:rg 4s steps(1) ${delay}s both}@keyframes rg{0%,40%{opacity:0}41%,76%{opacity:1}77%,100%{opacity:0}}` +
+  `.rf{animation:dm .3s steps(2) 14 ${(delay + 1.6).toFixed(1)}s}` +
+  `.rw{animation:rw 4s ease-out ${delay}s both}@keyframes rw{0%,78%{opacity:0}82%{opacity:1}100%{opacity:0}}`
+
+/** One-shot after the catch: the ship comes down on cables and is stacked on the booster; the cables let go. */
+const shipStyle = (drop: number) =>
+  `.sh{animation:sh 6s ease-in-out 7.2s both}@keyframes sh{0%{transform:translateY(-${drop}px)}83%,100%{transform:translateY(0)}}` +
+  `.shc{animation:shc 6s ease-in-out 7.2s both}@keyframes shc{0%{transform:translateY(-${drop}px);opacity:1}83%{transform:translateY(0);opacity:1}100%{transform:translateY(0);opacity:0}}`
+
+/** Soot settles on the aft and the stand as the static fire ends. */
+const SOOT_STYLE = `.so{animation:so 2s ease-out 3.6s both}@keyframes so{from{opacity:0}to{opacity:1}}`
+
 export type SceneOptions = {
+  /** The local hour, 0 to 23: sets the sky through the bay door. Noon when left out. */
+  hour?: number
   /** false draws a still picture: no CSS at all. */
   animate: boolean
   /** The brand on the plate above the rocket; empty or left out draws no plate. */
@@ -310,7 +430,7 @@ const brandPlate = (name: string) => {
   )
 }
 
-export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): string {
+export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: SceneOptions): string {
   const rings = Math.max(0, Math.min(RINGS, f.rings))
   const complete = rings >= RINGS
   const top = BASE - rings * RH
@@ -332,14 +452,31 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   // Claude works. Movers that sit wholly under the chat veil stay still.
   const busy = animate && f.working
   const mv = (cls: string) => (busy ? ` class="${cls}"` : '')
+  // Each build looks its own way; the draws run in a fixed order so a build never changes look.
+  const rnd = seeded(f.build)
+  const ringLook = Array.from({ length: RINGS }, () => Math.floor(rnd() * 12))
+  const shipGaps = Array.from({ length: 3 }, () => rnd())
+  const stackGaps = Array.from({ length: 4 }, () => rnd())
+  const frostStreaks = Array.from({ length: 3 }, () => RX + 3 + rnd() * 19)
+  const flawRing = rnd()
+  // Wear the stand keeps until the next build: frost marks from the cold test, soot from the static fire.
+  const frosted = stage === 'engines' || stage === 'fire' || stage === 'catch'
+  const sooted = stage === 'fire' || stage === 'catch'
+  // the ship is stacked on top once the booster has passed its catch test
+  const stacked = stage === 'catch' && complete
+  // a tool call failed in the turn that just ended: one weld is rejected and redone
+  const flawed = animate && !f.working && (f.flawed ?? 0) > 0 && rings > 0
+  const flawSeam = stacking && rings > 1 ? BASE - RH : top + Math.floor(flawRing * Math.max(1, rings - 1) + 1) * RH
   const o: string[] = [HEX_DEFS]
 
   // ---------- hall ----------
   o.push(`<rect width="${W}" height="${H}" fill="${G.bg}"/>`)
   o.push(`<rect y="30" width="${W}" height="${HORIZON - 30}" fill="${G.wall}"/>`)
   o.push(`<g fill="${G.bay}">${times(16, i => `<rect x="${6 + i * 50}" y="56" width="38" height="200"/>`)}</g>`)
+  // the bay behind the rocket stands open: the sky follows the local hour
+  o.push(skyDoor(hour, rnd))
   // tall work cells, as in a big assembly bay: ships parked in two of them, tiled on one side
-  o.push(tiledShip(216, 70, 256, '#2a2b2e') + tiledShip(716, 70, 256, '#2a2b2e'))
+  o.push(tiledShip(216, 70, 256, '#2a2b2e', shipGaps) + tiledShip(716, 70, 256, '#2a2b2e'))
   o.push(`<rect class="bc" x="732" y="150" width="2" height="2" fill="#e6e6e6"/>`)
   o.push(
     `<g fill="#1c1d1f">${times(16, i => [112, 162, 212].map(y => `<rect x="${6 + i * 50}" y="${y}" width="38" height="2.5"/>`).join(''))}</g>` +
@@ -435,6 +572,14 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   }
   o.push(`<g${crewed ? ' class="lf"' : ''}><rect x="151" y="392" width="11" height="2" fill="${G.l2}"/>${person(154.5, 384, 0.75, G.l5)}</g>`)
   o.push(`<rect x="166" y="360" width="44" height="6" fill="#3c3e41"/><rect x="168" y="366" width="5" height="32" fill="${G.d4}"/><rect x="203" y="366" width="5" height="32" fill="${G.d4}"/><rect x="160" y="396" width="56" height="4" fill="#26272a"/>`)
+  // soot from the static fire, on the stand top, the legs and the floor plate, kept until the next build
+  if (sooted) {
+    o.push(
+      `<g${firing ? ' class="so"' : ''} fill="#000"><rect x="172" y="360" width="32" height="6" opacity=".45"/>` +
+        `<rect x="168" y="366" width="5" height="14" opacity=".3"/><rect x="203" y="366" width="5" height="14" opacity=".3"/>` +
+        `<ellipse cx="188" cy="398" rx="30" ry="2.6" opacity=".4"/></g>`,
+    )
+  }
 
   // oxygen venting, only while the tanks are cold
   if (animate && fueled) {
@@ -459,7 +604,10 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
     )
     o.push(
       `<g class="sf" opacity="0"><ellipse cx="188" cy="398" rx="70" ry="10" fill="#fff" opacity=".12"/><path d="M178 360L198 360L193 396L183 396Z" fill="#fff" opacity=".35"/>` +
-        `<g class="df" fill="#fff"><ellipse cx="188" cy="368" rx="4" ry="2.4"/><ellipse cx="188" cy="378" rx="3.4" ry="2"/><ellipse cx="188" cy="387" rx="2.8" ry="1.7"/></g>` +
+        // shock diamonds down the plume
+        `<g class="df" fill="#fff">${[[367, 3.4, 2.6], [376, 2.8, 2.2], [384.5, 2.3, 1.8], [391.5, 1.8, 1.4]]
+          .map(([y, w, h]) => `<path d="M188 ${y - h}L${188 + w} ${y}L188 ${y + h}L${188 - w} ${y}Z"/>`)
+          .join('')}</g>` +
         `<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="#fff" opacity=".04"/></g>`,
     )
     // steam rolling out across the floor from the stand
@@ -508,9 +656,10 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   if (rings > 0) {
     // rings above the newest one: on a stacking redraw they ride the crane up and down as one
     const upper: string[] = []
-    for (let i = 1; i < rings; i++) upper.push(ring(BASE - (i + 1) * RH))
+    // each ring keeps its look by its place from the top, the order it was rolled in
+    for (let i = 1; i < rings; i++) upper.push(ring(BASE - (i + 1) * RH, ringLook[rings - 1 - i]))
     upper.push(sectionSeams(top, BASE - RH))
-    const newest = ring(BASE - RH) + (BASE - RH > top && (rings - 1) % 3 === 0 ? sectionSeams(BASE - RH - 3 * RH, BASE) : '')
+    const newest = ring(BASE - RH, ringLook[rings - 1]) + (BASE - RH > top && (rings - 1) % 3 === 0 ? sectionSeams(BASE - RH - 3 * RH, BASE) : '')
     if (rings === 1) {
       o.push(stacking ? `<g class="nr">${newest}${forward(top)}<g class="nc">${transferCart()}</g></g>` : newest + forward(top))
     } else if (stacking) {
@@ -546,8 +695,37 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   if (rings > 0 && animate && crewed) {
     o.push(`<g class="sw" opacity="0"><rect x="${RX + 6}" y="${top}" width="4" height="${Math.min(40, rings * RH)}" fill="#fff" opacity=".12"/></g>`)
   }
+  // frost marks left by the cold test run down the oxygen tank; soot darkens the aft after the fire
+  if (rings > 0 && frosted) {
+    const from = top + Math.round(rings * RH * 0.4)
+    o.push(`<g fill="#cfd6dc" opacity=".1">${frostStreaks.map(x => `<rect x="${x.toFixed(1)}" y="${from}" width=".8" height="${BASE - from}"/>`).join('')}</g>`)
+  }
+  if (rings > 0 && sooted) {
+    o.push(`<g${firing ? ' class="so"' : ''} fill="#000"><rect x="${RX}" y="${BASE - 12}" width="${RW}" height="12" opacity=".28"/><rect x="${RX}" y="${BASE - 22}" width="${RW}" height="10" opacity=".12"/></g>`)
+  }
+  // while Claude works, light from the moving work lamps rolls across the curved hull
+  if (rings > 0 && busy) {
+    o.push(`<rect class="hl" x="${RX + 1}" y="${top}" width="3" height="${BASE - top}" fill="#fff" opacity=".08"/>`)
+  }
+  // rejected weld: red lamp beside the seam, grinder sparks, then the seam flares as it is welded again
+  if (flawed) {
+    o.push(
+      `<g class="rj" opacity="0"><circle cx="${RX + RW + 3}" cy="${flawSeam}" r="4" fill="#e07a7a" opacity=".25"/><rect x="${RX + RW + 1.5}" y="${flawSeam - 1.5}" width="3" height="3" fill="#e88a8a"/></g>` +
+        `<g class="rg" opacity="0"><g class="rf" fill="#fff" stroke="#fff" stroke-width=".5">` +
+        `<circle cx="${RX + 6}" cy="${flawSeam}" r="1.4"/><circle cx="${RX + 3}" cy="${flawSeam + 3}" r=".6"/><circle cx="${RX + 1}" cy="${flawSeam - 2}" r=".5"/>` +
+        `<path d="M${RX + 6} ${flawSeam}l-7 4M${RX + 6} ${flawSeam}l-9 1M${RX + 6} ${flawSeam}l-6 -3"/></g></g>` +
+        `<rect class="rw" x="${RX - 1}" y="${flawSeam - 1}" width="${RW + 2}" height="2" fill="#f4f4f4" opacity="0"/>`,
+    )
+  }
 
   if (catching) o.push('</g>')
+
+  // full stack: after the catch test the ship is lowered onto the booster on cables, which then let go
+  if (stacked) {
+    const bottom = top - HS
+    const cables = `<g class="shc"><rect x="${RX + 9}" y="-200" width=".8" height="${bottom - SHIP_H + 200}" fill="${G.m4}"/><rect x="${RX + 16}" y="-200" width=".8" height="${bottom - SHIP_H + 200}" fill="${G.m4}"/></g>`
+    o.push(catching ? `${cables}<g class="sh">${stackShip(bottom, stackGaps)}</g>` : stackShip(bottom, stackGaps))
+  }
 
   // welders on while Claude is working: they prepare the bottom joint for the next ring
   if (f.working && stage === 'stack' && rings > 0 && !complete) {
@@ -598,11 +776,14 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   // the near lane sits above the bottom strip of the window, which the app's own UI covers
   onFloor(404, `<g${mv('c1')}><rect x="0" y="386" width="46" height="12" rx="4" fill="${G.m3}"/><rect x="22" y="377" width="17" height="10" rx="3" fill="${G.m5}"/><rect x="3" y="374" width="15" height="12" fill="#2f3033" stroke="${G.m5}"/><circle cx="9" cy="400" r="4" fill="${G.d1}"/><circle cx="37" cy="400" r="4" fill="${G.d1}"/><rect class="bc" x="35" y="374" width="3" height="2" fill="#e6e6e6"/></g>`)
   if (crewed) onFloor(381, `<g class="pr">${person(20, 372, 1, G.l2)}<rect x="16" y="372" width="34" height="2.4" rx="1" fill="${G.m4}"/>${person(44, 372, 1, G.l2)}</g>`)
-  if (crewed) onFloor(395, `<g class="w1">${person(222, 386, 1, G.l3)}</g>`)
+  // on a stage change the crew walks back in for the engine install, or walks off a pad being cleared
+  const walkIn = entering && crewed ? '<g class="wi">' : '<g>'
+  if (crewed) onFloor(395, `${walkIn}<g class="w1">${person(222, 386, 1, G.l3)}</g></g>`)
+  if (entering && !crewed) onFloor(402, `<g class="wo">${person(190, 391, 1, G.l3)}${person(199, 392, 1, G.l2)}</g>`)
   onFloor(411, `<g${mv('w2')}>${person(740, 402, 1, G.l2)}</g>`)
   onFloor(338, `<g${mv('w3')}>${person(690, 330, 0.9, G.l1)}</g>`)
   onFloor(300, person(470, 292, 0.8, G.l1) + person(478, 293, 0.8, G.m5) + person(640, 295, 0.8, G.l1))
-  if (crewed) onFloor(361, `${person(226, 352, 1, G.l4)}<rect x="230" y="355" width="5" height="6" fill="#d0d0d0" opacity=".5"/>`)
+  if (crewed) onFloor(361, `${walkIn}${person(226, 352, 1, G.l4)}<rect x="230" y="355" width="5" height="6" fill="#d0d0d0" opacity=".5"/></g>`)
 
   // transporter bringing a ship's nose section across the middle lane, behind the test stand;
   // its windward half is covered in black hex tiles
@@ -683,14 +864,33 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
   // build readout, above the tower, clear of the chat
   const mono = 'font-size="7" font-family="ui-monospace,Menlo,monospace"'
   const label = stage === 'stack' ? `STACK ${rings}/${RINGS}` : STAGE_LABEL[stage]
-  o.push(`<text${f.working ? ' class="hud"' : ''} x="140" y="167" ${mono} fill="${G.l4}">${label}</text>`)
+  // with the ship stacked the readout stands in front of it, so it gets a dark board
+  if (stacked) {
+    o.push(`<rect x="137" y="159" width="68" height="25" fill="${G.bg}" opacity=".9" stroke="${G.d4}" stroke-width=".8"/>`)
+  }
+  const labelClass = f.working ? ' class="hud"' : entering ? ' class="hf"' : ''
+  o.push(`<text${labelClass} x="140" y="167" ${mono} fill="${G.l4}">${label}</text>`)
   if (firing) {
     o.push(COUNTDOWN.map((t, i) => `<text class="cd${i}" x="192" y="167" ${mono} fill="${G.hi}" opacity="0">${t}</text>`).join(''))
   }
-  o.push(`<text x="140" y="176" ${mono} fill="${G.l1}">B-${String(f.build).padStart(2, '0')} \u00b7 W${f.welds}</text>`)
+  const rejects = f.rejects ?? 0
+  o.push(
+    `<text x="140" y="176" ${mono} fill="${G.l1}">B-${String(f.build).padStart(2, '0')} \u00b7 W${f.welds}` +
+      (rejects > 0 ? ` \u00b7 <tspan fill="#c98a8a">R${rejects}</tspan>` : '') +
+      `</text>`,
+  )
   // one pip per stage: done, now, still to come
   const at = STAGES.indexOf(stage)
-  o.push(times(STAGES.length, i => `<rect x="${140 + i * 7}" y="179" width="5" height="2" fill="${i < at ? G.l1 : i === at ? G.hi : G.d5}"/>`))
+  o.push(
+    times(
+      STAGES.length,
+      i => `<rect${i === at && entering ? ' class="hf"' : ''} x="${140 + i * 7}" y="179" width="5" height="2" fill="${i < at ? G.l1 : i === at ? G.hi : G.d5}"/>`,
+    ),
+  )
+  // the tower beacon turns as the booster moves to its next stage
+  if (entering) {
+    o.push(`<path class="rb" d="M157 186L178 180L178 192Z" fill="#e8dcb8" opacity="0"/>`)
+  }
 
   // Rule of this file: every animated class carries the whole `animation:` shorthand,
   // delay included. A rule that sets `animation-delay` alone froze the desktop backdrop.
@@ -704,7 +904,11 @@ export function buildScene(f: Factory, { animate, brand = '' }: SceneOptions): s
     (stacking ? stackStyle(rings, top) : '') +
     (cryoIn ? CRYO_STYLE : '') +
     (firing ? FIRE_STYLE : '') +
-    (catching ? RELEASE_STYLE + catchStyle(ARM_PARK - (top + 14)) : '')
+    (catching ? RELEASE_STYLE + catchStyle(ARM_PARK - (top + 14)) : '') +
+    (catching && stacked ? shipStyle(top - HS) : '') +
+    (firing ? SOOT_STYLE : '') +
+    (entering ? HANDOVER_STYLE : '') +
+    (flawed ? flawStyle(stacking && rings > 1 ? 7.9 : 0.4) : '')
   const style = animate ? `<style>${LOOP_STYLE}${lift}${oneShot}</style>` : ''
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMax slice">${style}${o.join('')}</svg>`

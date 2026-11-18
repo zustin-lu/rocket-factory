@@ -60,19 +60,32 @@ The booster has a vented hot-staging ring, grid fins and section seams. A ship w
 black hex tiles stands in a work cell, and the readout above the tower shows the
 stage, the build and the weld count, with one pip per stage.
 
-Each stage runs only its own work, as in a real build:
+The bay behind the rocket stands open, and its sky follows your local clock: stars and
+pad lights at night, a warm band at dawn and golden hour, gray daylight in between.
+Every build looks a little different: the rings come out in slightly different tones,
+inspectors leave chalk marks, and a few heat-shield tiles are still missing. The stand
+keeps its wear until the next build: frost marks after the cold test, soot after the
+static fire.
+
+A tool call that fails is a rejected weld. After that turn a red lamp blinks at a seam,
+a grinder throws sparks and the seam is welded again, and the readout counts the
+rejects in red (`R2`).
+
+Each stage runs only its own work, as in a real build. When the booster moves to the
+next stage, the readout blinks and the tower beacon turns.
 
 | Stage | What happens at the rocket |
 | --- | --- |
 | Stacking | The crane lifts the stack, a new ring rolls in underneath and its seam flares white, then a crawler inspects the seam. A boom lift, a tower lift and the crew work around the stand. |
-| Cryo proof | The pad is cleared and drones inspect. The clamps close, the umbilical swings in, the oxygen tank frosts and then the methane tank, and both vent. |
-| Engine install | The crew comes back and a cart lifts engines into the aft. |
-| Static fire | The readout counts down to ignition, the water deluge sprays, the engines fire and steam rolls across the floor. |
-| Catch test | The umbilical pulls back, the clamps open, and the tower arms close under the grid fins and lift the booster. |
+| Cryo proof | The crew walks off the pad and drones inspect. The clamps close, the umbilical swings in, the oxygen tank frosts and then the methane tank, and both vent. |
+| Engine install | The crew walks back in and a cart lifts engines into the aft. |
+| Static fire | The readout counts down to ignition, the water deluge sprays, the engines fire with shock diamonds in the plume, and steam rolls across the floor. |
+| Catch test | The umbilical pulls back, the clamps open, and the tower arms close under the grid fins and lift the booster. Then the ship is lowered onto it on cables: a full stack. |
 
 Between turns the hall runs on a skeleton crew: beacons, one truck and the bridge
-crane. Trucks, the nose-cone transporter, the floor cart, the test cell and the sparks
-run only while Claude works, which keeps the backdrop light on a laptop. Everything on
+crane. Trucks, the nose-cone transporter, the floor cart, the test cell, the sparks
+and the work light rolling across the hull run only while Claude works, which keeps
+the backdrop light on a laptop. Stage changes and rejected welds play once and stop. Everything on
 the floor is drawn back to front, so a truck on the far lane passes behind the rocket,
 never across it. Calm mode, and the system's reduced-motion setting, keep everything
 still.

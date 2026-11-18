@@ -77,6 +77,8 @@ const setBrand = async ($: EngineInterface, raw: string): Promise<string> => {
 // Tool calls of the running turn. Counted here and written once at turn end,
 // so the scene redraws twice a turn rather than on every call.
 let pendingWelds = 0
+// Tool calls of the running turn that failed: rejected welds, written with the welds.
+let pendingRejects = 0
 
 /**
  * Turns a look on, unless the Limits mod is missing or off: then the theme stays
@@ -151,21 +153,26 @@ export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined) {
       pendingWelds = 0
+      pendingRejects = 0
       await update($, factory, (f): Factory =>
         f.stage === 'catch'
-          ? { rings: 0, stage: 'stack', build: f.build + 1, welds: 0, working: true, last: 'start' }
-          : { ...f, working: true, last: 'start' },
+          ? { rings: 0, stage: 'stack', build: f.build + 1, welds: 0, rejects: 0, flawed: 0, working: true, last: 'start' }
+          : { ...f, flawed: 0, working: true, last: 'start' },
       )
     }
 
     return next(e)
   })
 
-  // Every tool call is a weld.
+  // Every tool call is a weld; one that fails is a rejected weld.
   on('tool.call', async ($, e, next) => {
     pendingWelds += 1
+    const result = await next(e)
+    if (result.isError === true) {
+      pendingRejects += 1
+    }
 
-    return next(e)
+    return result
   })
 
   // A turn ends: the crane stacks one ring. Once all rings are on, each turn moves the
@@ -174,9 +181,11 @@ export const register: Register = on => {
     const result = await next(e)
     if (e.agentId === undefined) {
       const welds = pendingWelds
+      const flawed = pendingRejects
       pendingWelds = 0
+      pendingRejects = 0
       await update($, factory, (f): Factory => {
-        const done = { ...f, welds: f.welds + welds, working: false }
+        const done = { ...f, welds: f.welds + welds, rejects: (f.rejects ?? 0) + flawed, flawed, working: false }
         if (f.stage === 'stack' && f.rings < RINGS) {
           return { ...done, rings: f.rings + 1, last: 'stack' }
         }
@@ -199,10 +208,12 @@ export const register: Register = on => {
     const { Svg } = $.ui.resolve(e)
     const f = await read($, factory)
     const name = await read($, brand)
+    // the sky through the bay door follows the local hour, read at each redraw
+    const hour = new Date(await $.clock.now()).getHours()
 
     return (
       <Svg
-        source={buildScene(f, { animate: !still, brand: name })}
+        source={buildScene(f, { animate: !still, brand: name, hour })}
         alt={`Monotone rocket factory${name ? `, branded ${name}` : ''}: build ${f.build}, ring ${Math.min(f.rings, RINGS)} of ${RINGS} stacked, stage ${STAGE_LABEL[f.stage] ?? 'stacking'}; crews, carts and robots at work`}
         isInteractive
       />

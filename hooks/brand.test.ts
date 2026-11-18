@@ -188,3 +188,57 @@ test('the hall runs on a skeleton crew between turns', async () => {
   expect(fire).toContain('class="df"')
   expect(fire).toContain('.df{animation:dm .3s steps(2) 24}')
 })
+
+test('the sky through the bay door follows the hour, and each build looks its own way', async () => {
+  const night = buildScene(FACTORY, { animate: false, hour: 23 })
+  const day = buildScene(FACTORY, { animate: false, hour: 12 })
+  expect(night).toContain('stop-color="#0a0c10"')
+  expect(night).toContain('fill="#d8dade"') // stars
+  expect(day).toContain('stop-color="#2c333c"')
+  expect(day).not.toContain('fill="#d8dade"')
+  // the same build always draws the same; another build differs
+  const b7 = buildScene({ ...FACTORY, rings: 8, build: 7 }, { animate: false, hour: 12 })
+  expect(buildScene({ ...FACTORY, rings: 8, build: 7 }, { animate: false, hour: 12 })).toBe(b7)
+  expect(buildScene({ ...FACTORY, rings: 8, build: 8 }, { animate: false, hour: 12 })).not.toBe(b7)
+})
+
+test('the stand keeps its wear, and the ship is stacked after the catch', async () => {
+  const fresh = buildScene({ ...FACTORY, rings: 8, stage: 'cryo' }, { animate: false })
+  const fired = buildScene({ ...FACTORY, rings: 8, stage: 'fire', last: 'stage' }, { animate: true })
+  const caughtIdle = buildScene({ ...FACTORY, rings: 8, stage: 'catch' }, { animate: false })
+  expect(fresh).not.toContain('fill="#cfd6dc"')
+  expect(fired).toContain('fill="#cfd6dc"') // frost marks from the cold test
+  expect(fired).toContain('class="so"') // soot settles as the fire ends
+  expect(caughtIdle).toContain(`<path d="M175 195V`) // ship sits on the hot-staging ring
+  const catching = buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage' }, { animate: true })
+  expect(catching).toContain('class="sh"')
+  expect(catching).toContain('class="shc"')
+  expect(buildScene({ ...FACTORY, rings: 8, stage: 'fire' }, { animate: false })).not.toContain('class="sh"')
+})
+
+test('a failed tool call is a rejected weld; stage changes hand over; one-shots stay one-shots', async () => {
+  const flawed = buildScene({ ...FACTORY, flawed: 1, rejects: 2 }, { animate: true })
+  expect(flawed).toContain('class="rj"')
+  expect(flawed).toContain('class="rf"')
+  expect(flawed).toContain('>R2</tspan>')
+  expect(buildScene({ ...FACTORY, flawed: 1, working: true }, { animate: true })).not.toContain('class="rj"')
+  expect(buildScene({ ...FACTORY, flawed: 1 }, { animate: false })).not.toContain('class="rj"')
+  const handover = buildScene({ ...FACTORY, rings: 8, stage: 'engines', last: 'stage' }, { animate: true })
+  expect(handover).toContain('class="rb"')
+  expect(handover).toContain('class="wi"')
+  expect(buildScene({ ...FACTORY, rings: 8, stage: 'cryo', last: 'stage' }, { animate: true })).toContain('class="wo"')
+  // between turns the new pieces add no loop; while Claude works only the hull light does
+  const loops = (svg: string) => (svg.match(/infinite/g) ?? []).length
+  const idle = buildScene({ ...FACTORY, rings: 8, stage: 'fire', flawed: 1 }, { animate: true })
+  expect(idle).not.toContain('class="hl"')
+  expect(buildScene({ ...FACTORY, working: true }, { animate: true })).toContain('class="hl"')
+  for (const cls of ['.rj{', '.rg{', '.rf{', '.rw{', '.hf{', '.rb{', '.wi{', '.wo{', '.sh{', '.shc{', '.so{']) {
+    for (const svg of [flawed, handover, idle, catchingAll()]) {
+      const at = svg.indexOf(cls)
+      if (at > -1) expect(svg.slice(at, svg.indexOf('}', at))).not.toContain('infinite')
+    }
+  }
+  expect(loops(idle)).toBe(loops(buildScene({ ...FACTORY, rings: 8, stage: 'fire' }, { animate: true })))
+})
+
+const catchingAll = () => buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage', flawed: 1 }, { animate: true })
