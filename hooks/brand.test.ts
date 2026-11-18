@@ -242,3 +242,15 @@ test('a failed tool call is a rejected weld; stage changes hand over; one-shots 
 })
 
 const catchingAll = () => buildScene({ ...FACTORY, rings: 8, stage: 'catch', last: 'stage', flawed: 1 }, { animate: true })
+
+test('no thin horizontal line runs behind the chat column', async () => {
+  for (const stage of STAGES) {
+    const svg = buildScene({ ...FACTORY, rings: 8, stage, working: true }, { animate: true })
+    for (const [, attrs] of svg.matchAll(/<rect ([^>]*)>/g)) {
+      const num = (name: string) => Number(new RegExp(`(?:^| )${name}="([^"]+)"`).exec(attrs)?.[1] ?? 0)
+      if (num('height') > 3) continue
+      expect(num('x') < 300 && num('x') + num('width') > 580).toBe(false)
+    }
+    expect(svg).not.toMatch(/M0 \d+H800/)
+  }
+})

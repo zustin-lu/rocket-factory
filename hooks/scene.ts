@@ -44,6 +44,24 @@ const ARM_LEN = 52
 const ARM_OPEN = 0.18
 // How dark the veil behind the chat column is, 0 to 1
 const LANE = 0.74
+// The veil holds full strength from LANE_L to LANE_R, a little wider than the chat text
+const LANE_L = 214
+const LANE_R = 656
+// The veil's soft edges end at these x: long horizontal lines stop inside them, so none
+// runs behind a line of chat text like an underline or a strike-through.
+const CUT_L = 206
+const CUT_R = 654
+/** True when a shape from x to x + w sits wholly behind the chat column. */
+const inLane = (x: number, w: number) => x >= CUT_L && x + w <= CUT_R
+/** A horizontal band from x0 to x1, left out where the chat column sits. */
+const rule = (y: number, h: number, fill: string, x0 = 0, x1 = W) =>
+  [
+    [x0, Math.min(x1, CUT_L)],
+    [Math.max(x0, CUT_R), x1],
+  ]
+    .filter(([a, b]) => b > a)
+    .map(([a, b]) => `<rect x="${a}" y="${y}" width="${b - a}" height="${h}" fill="${fill}"/>`)
+    .join('')
 
 // Steel grays, darkest to lightest
 const G = {
@@ -479,12 +497,12 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   o.push(tiledShip(216, 70, 256, '#2a2b2e', shipGaps) + tiledShip(716, 70, 256, '#2a2b2e'))
   o.push(`<rect class="bc" x="732" y="150" width="2" height="2" fill="#e6e6e6"/>`)
   o.push(
-    `<g fill="#1c1d1f">${times(16, i => [112, 162, 212].map(y => `<rect x="${6 + i * 50}" y="${y}" width="38" height="2.5"/>`).join(''))}</g>` +
-      `<g fill="#2b2c2f">${times(16, i => [108, 158, 208].map((y, k) => `<rect x="${12 + i * 50 + ((i + k) % 3) * 9}" y="${y}" width="3" height="1.6"/>`).join(''))}</g>`,
+    `<g fill="#1c1d1f">${times(16, i => (inLane(6 + i * 50, 38) ? [] : [112, 162, 212]).map(y => `<rect x="${6 + i * 50}" y="${y}" width="38" height="2.5"/>`).join(''))}</g>` +
+      `<g fill="#2b2c2f">${times(16, i => (inLane(6 + i * 50, 38) ? [] : [108, 158, 208]).map((y, k) => `<rect x="${12 + i * 50 + ((i + k) % 3) * 9}" y="${y}" width="3" height="1.6"/>`).join(''))}</g>`,
   )
   o.push(`<rect width="${W}" height="30" fill="${G.roof}"/>`)
   o.push(`<path d="${times(41, i => `${i ? 'L' : 'M'}${i * 20} ${i % 2 ? 28 : 10}`)}" stroke="#202123" stroke-width="1.5" fill="none"/>`)
-  o.push(`<rect y="48" width="${W}" height="2" fill="${G.d2}"/>`)
+  o.push(rule(48, 2, G.d2))
 
   // ceiling gantry robot
   o.push(`<g><rect x="560" y="44" width="22" height="8" fill="${G.m1}"/><rect x="570" y="52" width="2" height="14" fill="${G.m3}"/><rect x="565" y="66" width="12" height="3" fill="${G.m4}"/></g>`)
@@ -525,8 +543,8 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   )
 
   // ---------- floor ----------
-  o.push(`<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="${G.floor}"/><rect y="${HORIZON}" width="${W}" height="1" fill="${G.edge}"/>`)
-  o.push(`<g stroke="${G.line}" stroke-width="1.2">${[-900, -500, -150, 170, 470, 780, 1150, 1600].map(x => `<path d="M400 ${HORIZON}L${x} ${H}"/>`).join('')}<path d="M0 318H800M0 385H800M0 440H800"/></g>`)
+  o.push(`<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="${G.floor}"/>${rule(HORIZON, 1, G.edge)}`)
+  o.push(`<g stroke="${G.line}" stroke-width="1.2">${[-900, -500, -150, 170, 470, 780, 1150, 1600].map(x => `<path d="M400 ${HORIZON}L${x} ${H}"/>`).join('')}<path d="${[318, 385, 440].map(y => `M0 ${y}H${CUT_L}M${CUT_R} ${y}H${W}`).join('')}"/></g>`)
 
   // Everything standing on the floor is keyed by the y where it meets the floor
   // (larger is nearer the viewer) and drawn far to near, so a truck on the lane
@@ -536,24 +554,24 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
 
   // self-driving floor cart on its painted route, which loops around the weld
   // station: one copy shows on the near leg (in front), one on the far leg (behind)
-  o.push(`<path d="M240 412L700 412L740 362L280 362Z" fill="none" stroke="#1f2022" stroke-width="1.5" stroke-dasharray="4 4"/>`)
+  o.push(`<path d="M${CUT_R} 412L700 412L740 362L${CUT_R} 362" fill="none" stroke="#1f2022" stroke-width="1.5" stroke-dasharray="4 4"/>`)
   const cart = (cls: string) =>
     `<g${mv(cls)} transform="translate(240 412)"><rect x="-9" y="-5" width="18" height="7" rx="2" fill="${G.m2}"/><rect x="-6" y="-9" width="12" height="4" fill="#2f3033" stroke="${G.m4}" stroke-width=".7"/><rect class="bc" x="7" y="-3" width="2" height="2" fill="#e6e6e6"/></g>`
   onFloor(414, cart('agf'))
   if (busy) onFloor(364, cart('agb'))
 
-  // ring weld station
+  // ring weld station; it stands behind the chat column, so it is drawn in mid grays
   onFloor(
     399,
     `<g transform="translate(560 382)"><rect x="-26" y="12" width="52" height="5" fill="${G.edge}"/>` +
-      `<ellipse rx="22" ry="12" fill="none" stroke="${G.l1}" stroke-width="5"/><ellipse rx="22" ry="12" fill="none" stroke="${G.l3}" stroke-width="1.5"/>` +
+      `<ellipse rx="22" ry="12" fill="none" stroke="${G.m3}" stroke-width="5"/><ellipse rx="22" ry="12" fill="none" stroke="${G.m5}" stroke-width="1.5"/>` +
       `<rect x="-40" y="-2" width="6" height="16" fill="${G.m1}"/><rect${mv('r1')} x="-37" y="-18" width="3" height="18" fill="${G.m5}"/>` +
       `<rect x="34" y="-2" width="6" height="16" fill="${G.m1}"/><rect${mv('r2')} x="34" y="-18" width="3" height="18" fill="${G.m5}"/>` +
       (busy
         ? `<g class="ws"><circle cx="-22" cy="-3" r="1.6" fill="${G.white}"/><circle cx="-25" cy="1" r=".7" fill="#ccc"/></g>` +
           `<g class="ws2"><circle cx="22" cy="-4" r="1.6" fill="${G.white}"/><circle cx="25" cy="0" r=".7" fill="#ccc"/></g>`
         : '') +
-      `${person(-6, 28, 1, G.l2)}</g>`,
+      `${person(-6, 28, 1, G.m5)}</g>`,
   )
 
   // ---------- service tower & test stand ----------
@@ -782,7 +800,7 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   if (entering && !crewed) onFloor(402, `<g class="wo">${person(190, 391, 1, G.l3)}${person(199, 392, 1, G.l2)}</g>`)
   onFloor(411, `<g${mv('w2')}>${person(740, 402, 1, G.l2)}</g>`)
   onFloor(338, `<g${mv('w3')}>${person(690, 330, 0.9, G.l1)}</g>`)
-  onFloor(300, person(470, 292, 0.8, G.l1) + person(478, 293, 0.8, G.m5) + person(640, 295, 0.8, G.l1))
+  onFloor(300, person(470, 292, 0.8, G.m4) + person(478, 293, 0.8, G.m2) + person(640, 295, 0.8, G.m4))
   if (crewed) onFloor(361, `${walkIn}${person(226, 352, 1, G.l4)}<rect x="230" y="355" width="5" height="6" fill="#d0d0d0" opacity=".5"/></g>`)
 
   // transporter bringing a ship's nose section across the middle lane, behind the test stand;
@@ -830,14 +848,15 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   if (!crewed) o.push(`<g class="d1"><g class="bb"><rect x="212" y="300" width="8" height="2" fill="${G.l3}"/><rect x="210" y="299" width="3" height="1" fill="${G.m4}"/><rect x="219" y="299" width="3" height="1" fill="${G.m4}"/><rect class="bc" x="215" y="302" width="2" height="1" fill="#e6e6e6"/></g></g>`)
   if (!crewed) o.push(`<g class="d2"><g class="bb"><rect x="136" y="230" width="7" height="2" fill="${G.l3}"/><rect x="134" y="229" width="3" height="1" fill="${G.m4}"/><rect x="142" y="229" width="3" height="1" fill="${G.m4}"/></g></g>`)
 
-  // second bridge crane in the right bay, carrying a barrel section along the rail
+  // second bridge crane in the right bay, carrying a barrel section along the rail;
+  // it passes behind the chat column, so it is drawn in mid grays
   o.push(
-    `<g class="bk"><rect x="600" y="163" width="18" height="5" fill="${G.m5}"/><rect x="608" y="168" width="1.5" height="40" fill="${G.l1}"/>` +
-      `<rect x="594" y="208" width="30" height="14" fill="${G.l1}"/><rect x="600" y="208" width="6" height="14" fill="${G.l3}"/><rect x="594" y="208" width="30" height="1" fill="${G.m5}"/></g>`,
+    `<g class="bk"><rect x="600" y="163" width="18" height="5" fill="${G.m5}"/><rect x="608" y="168" width="1.5" height="40" fill="${G.m4}"/>` +
+      `<rect x="594" y="208" width="30" height="14" fill="${G.m4}"/><rect x="600" y="208" width="6" height="14" fill="${G.m5}"/><rect x="594" y="208" width="30" height="1" fill="${G.m5}"/></g>`,
   )
 
   // overhead crane: parked, or bringing the ring this redraw stacks
-  o.push(`<rect x="160" y="${RAIL_Y}" width="640" height="3" fill="#333437"/>`)
+  o.push(rule(RAIL_Y, 3, '#333437', 160))
   o.push(
     `<g${stacking ? ' class="cr"' : ''} transform="translate(${CRANE_PARK} 0)"><rect x="${RX + 4}" y="${RAIL_Y + 3}" width="18" height="5" fill="${G.m5}"/>` +
       `<rect${stacking ? ' class="cb"' : ''} x="${RX + 12}" y="${RAIL_Y + 8}" width="1.5" height="10" fill="${G.l1}"/></g>`,
@@ -845,16 +864,22 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
 
   // reading lane: a soft dark veil where the chat column sits (with the
   // right panel open or closed), so text stays readable without frosted glass
-  const lane = [
-    [212, 6, 0.18],
-    [218, 5, 0.38],
-    [223, 5, 0.58],
-    [228, 422, LANE],
-    [650, 5, 0.58],
-    [655, 5, 0.38],
-    [660, 6, 0.18],
-  ] as const
-  o.push(`<g fill="${G.bg}">${lane.map(([x, w, a]) => `<rect x="${x}" width="${w}" height="${H}" opacity="${a}"/>`).join('')}</g>`)
+  // One rect with a horizontal gradient: each side eases in and holds full strength a little
+  // past the text (chat lines start near x 213), so the edge reads as a soft blur rather than
+  // a band. The left fade is short to keep the rocket (x 175 to 201) bright. A gradient costs
+  // nothing per frame; a blur filter would.
+  const [fadeL, fadeR] = [16, 26]
+  const [from, to] = [LANE_L - fadeL, LANE_R + fadeR]
+  const ease = (t: number) => t * t * (3 - 2 * t)
+  const stop = (x: number, a: number) =>
+    `<stop offset="${((x - from) / (to - from)).toFixed(4)}" stop-color="${G.bg}" stop-opacity="${(a * LANE).toFixed(3)}"/>`
+  const ramp = Array.from({ length: 7 }, (_, i) => i / 6)
+  o.push(
+    `<linearGradient id="lane" gradientUnits="userSpaceOnUse" x1="${from}" x2="${to}">` +
+      ramp.map(t => stop(from + t * fadeL, ease(t))).join('') +
+      ramp.map(t => stop(LANE_R + t * fadeR, ease(1 - t))).join('') +
+      `</linearGradient><rect x="${from}" width="${to - from}" height="${H}" fill="url(#lane)"/>`,
+  )
 
   // brand plate above the rocket, drawn after the veil so it stays bright
   if (brand.trim() !== '') {

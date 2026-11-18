@@ -87,8 +87,9 @@ crane. Trucks, the nose-cone transporter, the floor cart, the test cell, the spa
 and the work light rolling across the hull run only while Claude works, which keeps
 the backdrop light on a laptop. Stage changes and rejected welds play once and stop. Everything on
 the floor is drawn back to front, so a truck on the far lane passes behind the rocket,
-never across it. Calm mode, and the system's reduced-motion setting, keep everything
-still.
+never across it. Behind the chat column the hall is dimmed, and no rail or floor line
+runs across it, so the text stays easy to read. Calm mode, and the system's
+reduced-motion setting, keep everything still.
 
 ### Reading the usage band
 
