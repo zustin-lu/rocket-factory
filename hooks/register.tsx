@@ -3,6 +3,7 @@ import type { EngineInterface, Register, ThemeSetArgs } from 'claude-code'
 
 import type { Factory, Look } from '../types'
 import { BRAND_MAX, BRAND_STORE_KEY, cleanBrand, storedBrand } from './brand'
+import { registerBubble } from './bubble'
 import { registerLimitsBand } from './limits-band'
 import { checkLimits, installSteps, shortNotice } from './limits-gate'
 import { makeColors } from './make-colors.js'
@@ -106,6 +107,7 @@ const apply = async ($: EngineInterface, mode: Mode): Promise<string | undefined
 
 export const register: Register = on => {
   registerLimitsBand(on)
+  registerBubble(on)
 
   on('session.start', async ($, e, next) => {
     const unpainted = problems.find(line => line.startsWith("Desktop won't paint"))

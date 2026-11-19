@@ -91,6 +91,14 @@ never across it. Behind the chat column the hall is dimmed, and no rail or floor
 runs across it, so the text stays easy to read. Calm mode, and the system's
 reduced-motion setting, keep everything still.
 
+### Your messages
+
+In the desktop and mobile apps, each message you send is drawn as a steel plate with
+a `▲ CMD` tag and a small rocket rail beside it, so your prompts stand out when you
+scroll back through a long session. A message from another session or agent gets a
+dimmer `◇ RELAY` tag with its sender's name. The terminal, and `/rocket-factory off`,
+keep the app's own bubbles.
+
 ### Reading the usage band
 
 ```
