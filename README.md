@@ -57,8 +57,10 @@ The theme turns on when a session starts.
 The animated backdrop draws in the desktop and mobile apps. The colors are dark-mode only.
 
 The booster has a vented hot-staging ring, grid fins and section seams. A ship with
-black hex tiles stands in a work cell, and the readout above the tower shows the
-stage, the build and the weld count, with one pip per stage.
+black hex tiles stands in a work cell, and the readout on a dark board above the
+rocket's nose shows the stage, the build and the weld count, with one pip per stage.
+The hall is seen from a little further back, so the rocket reads smaller while the
+brand plate and the readout keep their text size, clear of the rocket at every stage.
 
 The bay behind the rocket stands open, and its sky follows your local clock: stars and
 pad lights at night, a warm band at dawn and golden hour, gray daylight in between.

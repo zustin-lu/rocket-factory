@@ -2,7 +2,9 @@
 //
 // The scene is 800 x 472 and anchored bottom-left (xMinYMax slice). The
 // rocket stands in the gap between the app's sidebar and the chat column,
-// so it stays in view whether the right side panel is open or not.
+// so it stays in view whether the right side panel is open or not. The hall
+// is seen through a camera pulled back a little (CAM); text is drawn on top
+// at screen size.
 // Inspired by steel-ring rocket stacking and clean full-flow engines; no
 // real company's logo, name or vehicle is drawn.
 
@@ -42,25 +44,43 @@ const HS = 6
 const ARM_PARK = 262
 const ARM_LEN = 52
 const ARM_OPEN = 0.18
+// Camera: the hall is drawn in its own "world" units and shown at CAM scale around the
+// rocket's foot (CAM_X, CAM_Y), so the camera stands a little further back and the rocket
+// reads smaller. The veil, the brand plate and the readout are drawn on top in screen units,
+// so their text keeps its size.
+const CAM = 0.8
+const CAM_X = 188
+const CAM_Y = 400
+/** The world x shown at screen x. */
+const toWorldX = (x: number) => CAM_X + (x - CAM_X) / CAM
+// The world the camera sees, edge to edge
+const WX0 = Math.floor(toWorldX(0))
+const WX1 = Math.ceil(toWorldX(W))
+const WY0 = Math.floor(CAM_Y - CAM_Y / CAM)
+const WY1 = Math.ceil(CAM_Y + (H - CAM_Y) / CAM)
+// Things on the right of the hall move this far right in the world, so after the camera
+// pulls back they still stand right of the chat column when the side panel is closed.
+const RSHIFT = 136
+const right = (svg: string) => `<g transform="translate(${RSHIFT} 0)">${svg}</g>`
 // How dark the veil behind the chat column is, 0 to 1
 const LANE = 0.74
-// The veil holds full strength from LANE_L to LANE_R, a little wider than the chat text
+// The veil holds full strength from LANE_L to LANE_R (screen units), a little wider than the chat text
 const LANE_L = 214
 const LANE_R = 656
-// The veil's soft edges end at these x: long horizontal lines stop inside them, so none
-// runs behind a line of chat text like an underline or a strike-through.
-const CUT_L = 206
-const CUT_R = 654
-/** True when a shape from x to x + w sits wholly behind the chat column. */
+// The veil's soft edges end at screen x 206 and 654: long horizontal lines stop inside them,
+// so none runs behind a line of chat text like an underline or a strike-through. In world units:
+const CUT_L = toWorldX(206)
+const CUT_R = toWorldX(654)
+/** True when a shape from x to x + w (world units) sits wholly behind the chat column. */
 const inLane = (x: number, w: number) => x >= CUT_L && x + w <= CUT_R
-/** A horizontal band from x0 to x1, left out where the chat column sits. */
-const rule = (y: number, h: number, fill: string, x0 = 0, x1 = W) =>
+/** A horizontal band from x0 to x1 (world units), left out where the chat column sits. */
+const rule = (y: number, h: number, fill: string, x0 = WX0, x1 = WX1) =>
   [
     [x0, Math.min(x1, CUT_L)],
     [Math.max(x0, CUT_R), x1],
   ]
     .filter(([a, b]) => b > a)
-    .map(([a, b]) => `<rect x="${a}" y="${y}" width="${b - a}" height="${h}" fill="${fill}"/>`)
+    .map(([a, b]) => `<rect x="${+a.toFixed(1)}" y="${y}" width="${+(b - a).toFixed(1)}" height="${h}" fill="${fill}"/>`)
     .join('')
 
 // Steel grays, darkest to lightest
@@ -133,8 +153,9 @@ const ring = (y: number, v = 0) =>
 
 const times = (n: number, f: (i: number) => string) => Array.from({ length: n }, (_, i) => f(i)).join('')
 
-// Ship stacked on the booster after the catch test, about two thirds of its height
-const SHIP_H = 100
+// Ship stacked on the booster after the catch test, a little over half its height, so the
+// full stack leaves room above it for the brand plate and the readout
+const SHIP_H = 90
 
 /** The sky through the tall bay door behind the rocket, by the local hour: muted, as seen from inside a dark hall. */
 const skyAt = (hour: number) =>
@@ -263,10 +284,10 @@ const LOOP_STYLE = `
 .ln{animation:ln 40s linear infinite}@keyframes ln{to{transform:translateX(-90px)}}
 .aL{transform-box:fill-box;transform-origin:0 50%;animation:aL 9s ease-in-out infinite alternate}@keyframes aL{from{transform:rotate(-4deg)}to{transform:rotate(14deg)}}
 .aR{transform-box:fill-box;transform-origin:0 50%;animation:aR 9s ease-in-out infinite alternate}@keyframes aR{from{transform:rotate(4deg)}to{transform:rotate(-14deg)}}
-.c1{animation:c1 18s linear infinite}@keyframes c1{from{transform:translateX(-120px)}to{transform:translateX(920px)}}
-.c2{animation:c2 26s linear infinite}@keyframes c2{from{transform:translateX(900px)}to{transform:translateX(-140px)}}
-.agf{animation:agf 26s linear infinite}@keyframes agf{0%{transform:translate(240px,412px);opacity:1}44%{transform:translate(700px,412px)}47%{opacity:1}47.1%{opacity:0}50%{transform:translate(740px,362px)}94%{transform:translate(280px,362px)}97%{opacity:0}97.1%{opacity:1}100%{transform:translate(240px,412px);opacity:1}}
-.agb{animation:agb 26s linear infinite}@keyframes agb{0%{transform:translate(240px,412px);opacity:0}44%{transform:translate(700px,412px)}47%{opacity:0}47.1%{opacity:1}50%{transform:translate(740px,362px)}94%{transform:translate(280px,362px)}97%{opacity:1}97.1%{opacity:0}100%{transform:translate(240px,412px);opacity:0}}
+.c1{animation:c1 18s linear infinite}@keyframes c1{from{transform:translateX(-170px)}to{transform:translateX(1000px)}}
+.c2{animation:c2 26s linear infinite}@keyframes c2{from{transform:translateX(980px)}to{transform:translateX(-190px)}}
+.agf{animation:agf 26s linear infinite}@keyframes agf{0%{transform:translate(240px,412px);opacity:1}44%{transform:translate(836px,412px)}47%{opacity:1}47.1%{opacity:0}50%{transform:translate(876px,362px)}94%{transform:translate(280px,362px)}97%{opacity:0}97.1%{opacity:1}100%{transform:translate(240px,412px);opacity:1}}
+.agb{animation:agb 26s linear infinite}@keyframes agb{0%{transform:translate(240px,412px);opacity:0}44%{transform:translate(836px,412px)}47%{opacity:0}47.1%{opacity:1}50%{transform:translate(876px,362px)}94%{transform:translate(280px,362px)}97%{opacity:1}97.1%{opacity:0}100%{transform:translate(240px,412px);opacity:0}}
 .w1{animation:w1 20s linear infinite alternate}@keyframes w1{to{transform:translateX(90px)}}
 .w2{animation:w2 14s linear infinite alternate}@keyframes w2{to{transform:translateX(-70px)}}
 .w3{animation:w3 18s linear infinite alternate}@keyframes w3{to{transform:translateX(-140px)}}
@@ -275,7 +296,7 @@ const LOOP_STYLE = `
 .co{transform-box:fill-box;transform-origin:50% 50%;animation:co 6s linear infinite}@keyframes co{to{transform:rotate(360deg)}}
 .rm{transform-box:fill-box;transform-origin:50% 100%;animation:rm 5s ease-in-out infinite}@keyframes rm{0%,100%{transform:scaleY(.45)}40%,70%{transform:scaleY(1)}}
 .uf{animation:uf .8s linear infinite}@keyframes uf{to{stroke-dashoffset:-16}}
-.sp{animation:sp 44s linear infinite}@keyframes sp{from{transform:translateX(860px)}to{transform:translateX(-120px)}}
+.sp{animation:sp 44s linear infinite}@keyframes sp{from{transform:translateX(1000px)}to{transform:translateX(-170px)}}
 .tc{animation:tc 16s ease-in-out infinite alternate}@keyframes tc{to{transform:translateX(70px)}}
 .bk{animation:bk 30s ease-in-out infinite alternate}@keyframes bk{from{transform:translateX(-80px)}to{transform:translateX(150px)}}
 .fs1{animation:fs 1.2s steps(6) infinite}.fs2{animation:fs 1.2s steps(6) infinite .4s}.fs3{animation:fs 1.2s steps(6) infinite .8s}
@@ -419,9 +440,12 @@ export type SceneOptions = {
 const escXml = (t: string) =>
   t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-// Brand plate: hung from the roof truss above the rocket, kept left of the reading lane.
+// Brand plate and build readout, in screen units: hung from the roof truss, stacked above
+// the rocket's nose (the full stack tops out near screen y 164), left of the reading lane.
+const ROOF_Y = 96
 const PLATE_CX = 175
-const PLATE_Y = 106
+const PLATE_Y = 108
+const READOUT_Y = 130
 const PLATE_H = 18
 const PLATE_MAX_W = 72
 const PLATE_FONT = 8
@@ -434,7 +458,7 @@ const brandPlate = (name: string) => {
   const w = Math.min(PLATE_MAX_W, Math.max(36, natural + 14))
   const textW = Math.min(natural, w - 10)
   const x = PLATE_CX - w / 2
-  const cable = (cx: number) => `<rect x="${cx.toFixed(1)}" y="50" width="1" height="${PLATE_Y - 50}" fill="${G.d5}"/>`
+  const cable = (cx: number) => `<rect x="${cx.toFixed(1)}" y="${ROOF_Y}" width="1" height="${PLATE_Y - ROOF_Y}" fill="${G.d5}"/>`
   const rivet = (cx: number) => `<circle cx="${cx.toFixed(1)}" cy="${PLATE_Y + 3.5}" r=".9" fill="${G.m5}"/>`
   return (
     `<g>${cable(x + 6)}${cable(x + w - 7)}` +
@@ -487,21 +511,31 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   const flawSeam = stacking && rings > 1 ? BASE - RH : top + Math.floor(flawRing * Math.max(1, rings - 1) + 1) * RH
   const o: string[] = [HEX_DEFS]
 
+  // the world, seen through the pulled-back camera
+  const camera = `<g transform="translate(${CAM_X} ${CAM_Y}) scale(${CAM}) translate(${-CAM_X} ${-CAM_Y})">`
+  o.push(camera)
+  const span = `x="${WX0}" width="${WX1 - WX0}"`
+  // bays every 50 from x 6, across the whole world the camera sees
+  const BAYS = Array.from({ length: 21 }, (_, i) => 6 + (i - 1) * 50)
+
   // ---------- hall ----------
-  o.push(`<rect width="${W}" height="${H}" fill="${G.bg}"/>`)
-  o.push(`<rect y="30" width="${W}" height="${HORIZON - 30}" fill="${G.wall}"/>`)
-  o.push(`<g fill="${G.bay}">${times(16, i => `<rect x="${6 + i * 50}" y="56" width="38" height="200"/>`)}</g>`)
+  o.push(`<rect ${span} y="${WY0}" height="${WY1 - WY0}" fill="${G.bg}"/>`)
+  o.push(`<rect ${span} y="30" height="${HORIZON - 30}" fill="${G.wall}"/>`)
+  o.push(`<g fill="${G.bay}">${BAYS.map(x => `<rect x="${x}" y="56" width="38" height="200"/>`).join('')}</g>`)
   // the bay behind the rocket stands open: the sky follows the local hour
   o.push(skyDoor(hour, rnd))
   // tall work cells, as in a big assembly bay: ships parked in two of them, tiled on one side
-  o.push(tiledShip(216, 70, 256, '#2a2b2e', shipGaps) + tiledShip(716, 70, 256, '#2a2b2e'))
-  o.push(`<rect class="bc" x="732" y="150" width="2" height="2" fill="#e6e6e6"/>`)
+  o.push(tiledShip(216, 70, 256, '#2a2b2e', shipGaps) + right(tiledShip(716, 70, 256, '#2a2b2e')))
+  o.push(right(`<rect class="bc" x="732" y="150" width="2" height="2" fill="#e6e6e6"/>`))
   o.push(
-    `<g fill="#1c1d1f">${times(16, i => (inLane(6 + i * 50, 38) ? [] : [112, 162, 212]).map(y => `<rect x="${6 + i * 50}" y="${y}" width="38" height="2.5"/>`).join(''))}</g>` +
-      `<g fill="#2b2c2f">${times(16, i => (inLane(6 + i * 50, 38) ? [] : [108, 158, 208]).map((y, k) => `<rect x="${12 + i * 50 + ((i + k) % 3) * 9}" y="${y}" width="3" height="1.6"/>`).join(''))}</g>`,
+    `<g fill="#1c1d1f">${BAYS.map(x => (inLane(x, 38) ? [] : [112, 162, 212]).map(y => `<rect x="${x}" y="${y}" width="38" height="2.5"/>`).join('')).join('')}</g>` +
+      `<g fill="#2b2c2f">${BAYS.map((x, i) => (inLane(x, 38) ? [] : [108, 158, 208]).map((y, k) => `<rect x="${x + 6 + ((i + 2 + k) % 3) * 9}" y="${y}" width="3" height="1.6"/>`).join('')).join('')}</g>`,
   )
-  o.push(`<rect width="${W}" height="30" fill="${G.roof}"/>`)
-  o.push(`<path d="${times(41, i => `${i ? 'L' : 'M'}${i * 20} ${i % 2 ? 28 : 10}`)}" stroke="#202123" stroke-width="1.5" fill="none"/>`)
+  // roof: with the camera pulled back more of it shows, so there is a second truss higher up
+  o.push(`<rect ${span} y="${WY0}" height="${30 - WY0}" fill="${G.roof}"/>`)
+  const truss = (y0: number, y1: number) =>
+    `<path d="${times(52, i => `${i ? 'L' : 'M'}${-60 + i * 20} ${i % 2 ? y1 : y0}`)}" stroke="#202123" stroke-width="1.5" fill="none"/>`
+  o.push(truss(10, 28) + truss(-62, -44) + rule(-36, 2, G.d1))
   o.push(rule(48, 2, G.d2))
 
   // ceiling gantry robot
@@ -533,18 +567,20 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   )
 
   // engine test cell, far right
-  o.push(
+  o.push(right(
     `<rect x="712" y="250" width="70" height="50" fill="${G.roof}" stroke="${G.edge}"/><rect x="712" y="250" width="70" height="3" fill="${G.edge}"/>` +
       bell(735, 262, 1.3, G.m3) +
       (busy
         ? `<g class="cl"><path d="M732 270L738 270L742 296L728 296Z" fill="#fff" opacity=".35"/><g class="dm" fill="#fff"><ellipse cx="735" cy="276" rx="2" ry="1.2"/><ellipse cx="735" cy="283" rx="1.6" ry="1"/><ellipse cx="735" cy="290" rx="1.3" ry=".8"/></g><rect x="712" y="250" width="70" height="50" fill="#fff" opacity=".04"/></g>`
         : '') +
       `<rect x="756" y="262" width="20" height="12" fill="#101112"/><rect${mv('sc')} x="758" y="265" width="14" height="2" fill="${G.m4}"/><rect${mv('sc2')} x="758" y="269" width="10" height="2" fill="${G.m2}"/>`,
-  )
+  ))
 
   // ---------- floor ----------
-  o.push(`<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="${G.floor}"/>${rule(HORIZON, 1, G.edge)}`)
-  o.push(`<g stroke="${G.line}" stroke-width="1.2">${[-900, -500, -150, 170, 470, 780, 1150, 1600].map(x => `<path d="M400 ${HORIZON}L${x} ${H}"/>`).join('')}<path d="${[318, 385, 440].map(y => `M0 ${y}H${CUT_L}M${CUT_R} ${y}H${W}`).join('')}"/></g>`)
+  o.push(`<rect ${span} y="${HORIZON}" height="${WY1 - HORIZON}" fill="${G.floor}"/>${rule(HORIZON, 1, G.edge)}`)
+  // perspective lines run on to the bottom of the world, at the same angles as before
+  const toFloor = (x: number) => (400 + ((x - 400) * (WY1 - HORIZON)) / (H - HORIZON)).toFixed(1)
+  o.push(`<g stroke="${G.line}" stroke-width="1.2">${[-900, -500, -150, 170, 470, 780, 1150, 1600].map(x => `<path d="M400 ${HORIZON}L${toFloor(x)} ${WY1}"/>`).join('')}<path d="${[318, 385, 440].map(y => `M${WX0} ${y}H${CUT_L.toFixed(1)}M${CUT_R.toFixed(1)} ${y}H${WX1}`).join('')}"/></g>`)
 
   // Everything standing on the floor is keyed by the y where it meets the floor
   // (larger is nearer the viewer) and drawn far to near, so a truck on the lane
@@ -554,7 +590,7 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
 
   // self-driving floor cart on its painted route, which loops around the weld
   // station: one copy shows on the near leg (in front), one on the far leg (behind)
-  o.push(`<path d="M${CUT_R} 412L700 412L740 362L${CUT_R} 362" fill="none" stroke="#1f2022" stroke-width="1.5" stroke-dasharray="4 4"/>`)
+  o.push(`<path d="M${CUT_R.toFixed(1)} 412L836 412L876 362L${CUT_R.toFixed(1)} 362" fill="none" stroke="#1f2022" stroke-width="1.5" stroke-dasharray="4 4"/>`)
   const cart = (cls: string) =>
     `<g${mv(cls)} transform="translate(240 412)"><rect x="-9" y="-5" width="18" height="7" rx="2" fill="${G.m2}"/><rect x="-6" y="-9" width="12" height="4" fill="#2f3033" stroke="${G.m4}" stroke-width=".7"/><rect class="bc" x="7" y="-3" width="2" height="2" fill="#e6e6e6"/></g>`
   onFloor(414, cart('agf'))
@@ -626,7 +662,7 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
         `<g class="df" fill="#fff">${[[367, 3.4, 2.6], [376, 2.8, 2.2], [384.5, 2.3, 1.8], [391.5, 1.8, 1.4]]
           .map(([y, w, h]) => `<path d="M188 ${y - h}L${188 + w} ${y}L188 ${y + h}L${188 - w} ${y}Z"/>`)
           .join('')}</g>` +
-        `<rect y="${HORIZON}" width="${W}" height="${H - HORIZON}" fill="#fff" opacity=".04"/></g>`,
+        `<rect ${span} y="${HORIZON}" height="${WY1 - HORIZON}" fill="#fff" opacity=".04"/></g>`,
     )
     // steam rolling out across the floor from the stand
     o.push(
@@ -798,8 +834,8 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   const walkIn = entering && crewed ? '<g class="wi">' : '<g>'
   if (crewed) onFloor(395, `${walkIn}<g class="w1">${person(222, 386, 1, G.l3)}</g></g>`)
   if (entering && !crewed) onFloor(402, `<g class="wo">${person(190, 391, 1, G.l3)}${person(199, 392, 1, G.l2)}</g>`)
-  onFloor(411, `<g${mv('w2')}>${person(740, 402, 1, G.l2)}</g>`)
-  onFloor(338, `<g${mv('w3')}>${person(690, 330, 0.9, G.l1)}</g>`)
+  onFloor(411, right(`<g${mv('w2')}>${person(740, 402, 1, G.l2)}</g>`))
+  onFloor(338, right(`<g${mv('w3')}>${person(690, 330, 0.9, G.l1)}</g>`))
   onFloor(300, person(470, 292, 0.8, G.m4) + person(478, 293, 0.8, G.m2) + person(640, 295, 0.8, G.m4))
   if (crewed) onFloor(361, `${walkIn}${person(226, 352, 1, G.l4)}<rect x="230" y="355" width="5" height="6" fill="#d0d0d0" opacity=".5"/></g>`)
 
@@ -817,28 +853,28 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   // a barrel section on a weld jig in front of the test cell, a welder and a shower of sparks
   onFloor(
     318,
-    `<rect x="688" y="313" width="3" height="5" fill="${G.d5}"/><rect x="709" y="313" width="3" height="5" fill="${G.d5}"/><rect x="684" y="317" width="32" height="2" fill="${G.edge}"/>` +
+    right(`<rect x="688" y="313" width="3" height="5" fill="${G.d5}"/><rect x="709" y="313" width="3" height="5" fill="${G.d5}"/><rect x="684" y="317" width="32" height="2" fill="${G.edge}"/>` +
       `<ellipse cx="700" cy="303" rx="13" ry="11" fill="none" stroke="${G.l1}" stroke-width="4"/><ellipse cx="700" cy="303" rx="13" ry="11" fill="none" stroke="${G.l3}" stroke-width="1"/>` +
       person(718, 309, 0.85, G.l2) +
       (busy
         ? `<g class="dm"><circle cx="713" cy="302" r="1.6" fill="${G.white}"/></g>` +
           `<g fill="#e6e6e6">${['fs1', 'fs2', 'fs3'].map((c, i) => `<circle class="${c}" cx="${712 + i}" cy="303" r=".8"/>`).join('')}</g>`
-        : ''),
+        : '')),
   )
   // a tech pushing a tool cart along the right side
   onFloor(
     358,
-    `<g${mv('tc')}>${person(688, 347, 1, G.l3)}<rect x="694" y="349" width="14" height="5" rx="1" fill="${G.m4}"/><rect x="695" y="346" width="12" height="2" fill="${G.m2}"/>` +
-      `<circle cx="697" cy="356" r="1.6" fill="${G.d1}"/><circle cx="705" cy="356" r="1.6" fill="${G.d1}"/></g>`,
+    right(`<g${mv('tc')}>${person(688, 347, 1, G.l3)}<rect x="694" y="349" width="14" height="5" rx="1" fill="${G.m4}"/><rect x="695" y="346" width="12" height="2" fill="${G.m2}"/>` +
+      `<circle cx="697" cy="356" r="1.6" fill="${G.d1}"/><circle cx="705" cy="356" r="1.6" fill="${G.d1}"/></g>`),
   )
   // still clutter costs nothing to draw: crates and a stack of spare rings
   onFloor(
     331,
-    `<rect x="766" y="316" width="16" height="14" fill="${G.d4}" stroke="${G.m1}"/><rect x="782" y="320" width="14" height="10" fill="${G.d5}" stroke="${G.m1}"/><rect x="770" y="306" width="10" height="10" fill="${G.d5}" stroke="${G.m1}"/>`,
+    right(`<rect x="766" y="316" width="16" height="14" fill="${G.d4}" stroke="${G.m1}"/><rect x="782" y="320" width="14" height="10" fill="${G.d5}" stroke="${G.m1}"/><rect x="770" y="306" width="10" height="10" fill="${G.d5}" stroke="${G.m1}"/>`),
   )
   onFloor(
     374,
-    `<g fill="none" stroke-width="3">${times(3, i => `<ellipse cx="776" cy="${368 - i * 6}" rx="14" ry="4" stroke="${i === 2 ? G.l3 : G.l1}"/>`)}</g>`,
+    right(`<g fill="none" stroke-width="3">${times(3, i => `<ellipse cx="776" cy="${368 - i * 6}" rx="14" ry="4" stroke="${i === 2 ? G.l3 : G.l1}"/>`)}</g>`),
   )
 
   // far to near; the sort keeps ties in the order they were added
@@ -861,6 +897,9 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
     `<g${stacking ? ' class="cr"' : ''} transform="translate(${CRANE_PARK} 0)"><rect x="${RX + 4}" y="${RAIL_Y + 3}" width="18" height="5" fill="${G.m5}"/>` +
       `<rect${stacking ? ' class="cb"' : ''} x="${RX + 12}" y="${RAIL_Y + 8}" width="1.5" height="10" fill="${G.l1}"/></g>`,
   )
+
+  // end of the world; from here on everything is in screen units
+  o.push('</g>')
 
   // reading lane: a soft dark veil where the chat column sits (with the
   // right panel open or closed), so text stays readable without frosted glass
@@ -886,21 +925,19 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
     o.push(brandPlate(brand.trim()))
   }
 
-  // build readout, above the tower, clear of the chat
+  // build readout on a dark board under the brand plate, above the rocket's nose, clear of the chat
   const mono = 'font-size="7" font-family="ui-monospace,Menlo,monospace"'
   const label = stage === 'stack' ? `STACK ${rings}/${RINGS}` : STAGE_LABEL[stage]
-  // with the ship stacked the readout stands in front of it, so it gets a dark board
-  if (stacked) {
-    o.push(`<rect x="137" y="159" width="68" height="25" fill="${G.bg}" opacity=".9" stroke="${G.d4}" stroke-width=".8"/>`)
-  }
+  const ry = READOUT_Y
+  o.push(`<rect x="137" y="${ry}" width="68" height="25" fill="${G.bg}" opacity=".9" stroke="${G.d4}" stroke-width=".8"/>`)
   const labelClass = f.working ? ' class="hud"' : entering ? ' class="hf"' : ''
-  o.push(`<text${labelClass} x="140" y="167" ${mono} fill="${G.l4}">${label}</text>`)
+  o.push(`<text${labelClass} x="140" y="${ry + 8}" ${mono} fill="${G.l4}">${label}</text>`)
   if (firing) {
-    o.push(COUNTDOWN.map((t, i) => `<text class="cd${i}" x="192" y="167" ${mono} fill="${G.hi}" opacity="0">${t}</text>`).join(''))
+    o.push(COUNTDOWN.map((t, i) => `<text class="cd${i}" x="192" y="${ry + 8}" ${mono} fill="${G.hi}" opacity="0">${t}</text>`).join(''))
   }
   const rejects = f.rejects ?? 0
   o.push(
-    `<text x="140" y="176" ${mono} fill="${G.l1}">B-${String(f.build).padStart(2, '0')} \u00b7 W${f.welds}` +
+    `<text x="140" y="${ry + 17}" ${mono} fill="${G.l1}">B-${String(f.build).padStart(2, '0')} \u00b7 W${f.welds}` +
       (rejects > 0 ? ` \u00b7 <tspan fill="#c98a8a">R${rejects}</tspan>` : '') +
       `</text>`,
   )
@@ -909,12 +946,12 @@ export function buildScene(f: Factory, { animate, brand = '', hour = 12 }: Scene
   o.push(
     times(
       STAGES.length,
-      i => `<rect${i === at && entering ? ' class="hf"' : ''} x="${140 + i * 7}" y="179" width="5" height="2" fill="${i < at ? G.l1 : i === at ? G.hi : G.d5}"/>`,
+      i => `<rect${i === at && entering ? ' class="hf"' : ''} x="${140 + i * 7}" y="${ry + 20}" width="5" height="2" fill="${i < at ? G.l1 : i === at ? G.hi : G.d5}"/>`,
     ),
   )
   // the tower beacon turns as the booster moves to its next stage
   if (entering) {
-    o.push(`<path class="rb" d="M157 186L178 180L178 192Z" fill="#e8dcb8" opacity="0"/>`)
+    o.push(`${camera}<path class="rb" d="M157 186L178 180L178 192Z" fill="#e8dcb8" opacity="0"/></g>`)
   }
 
   // Rule of this file: every animated class carries the whole `animation:` shorthand,
