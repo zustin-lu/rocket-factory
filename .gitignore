@@ -1,3 +1,6 @@
 .DS_Store
 *.log
 .claude-plugin/types/
+
+# Intro video project, kept locally
+rocket-factory-intro/
